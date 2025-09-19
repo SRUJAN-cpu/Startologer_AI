@@ -1,6 +1,6 @@
 import os
 from textExtraction.textExtractor import extract_text
-from helpers.llmCient import get_processed_data
+from helpers.llmCient import get_processed_data, get_risk_assessment
 
 class InputProcessService:
     def __init__(self, upload_folder):
@@ -45,10 +45,14 @@ class InputProcessService:
         
         # Get processed results from LLM
         try:
-            processed_results = get_processed_data(details)
+            investment_analysis = get_processed_data(details)
+            risk_assessment = get_risk_assessment(details)
             return {
                 'success': True,
-                'data': processed_results,
+                'data': {
+                    'investment_analysis': investment_analysis,
+                    'risk_assessment': risk_assessment
+                },
                 'input_summary': {
                     'idea': idea,
                     'target_audience': target_audience,
