@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Hero } from './hero';
+import { PitchStepperDialog } from './pitch-stepper-dialog';
 
-describe('Hero', () => {
-  let component: Hero;
-  let fixture: ComponentFixture<Hero>;
+describe('PitchStepperDialog', () => {
+  let component: PitchStepperDialog;
+  let fixture: ComponentFixture<PitchStepperDialog>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Hero]
+      imports: [PitchStepperDialog]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(Hero);
+    fixture = TestBed.createComponent(PitchStepperDialog);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

@@ -1,53 +1,28 @@
-<h2 mat-dialog-title>
-  {{ data.title || 'Upload Files' }}
-</h2>
-<mat-dialog-content>
-  <p class="text-gray-600 mb-4">
-    {{ data.description || 'Choose files or drag & drop below.' }}
-  </p>
-
-  <!-- Drag & Drop Zone -->
-  <div
-    class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition"
-    [class.border-blue-500]="isDragOver"
-    [class.bg-blue-50]="isDragOver"
-    (drop)="onDrop($event)"
-    (dragover)="onDragOver($event)"
-    (dragleave)="onDragLeave($event)"
+<!-- pitch-upload.component.html -->
+<div
+  class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition"
+  [class.border-blue-500]="isDragOver"
+  [class.bg-blue-50]="isDragOver"
+  (drop)="onDrop($event)"
+  (dragover)="onDragOver($event)"
+  (dragleave)="onDragLeave($event)"
+>
+  <p class="text-sm text-gray-500">Drag & drop your file here, or click below</p>
+  <input
+    type="file"
+    class="hidden"
+    id="fileInput"
+    multiple
+    (change)="onFileSelected($event)"
+  />
+  <label
+    for="fileInput"
+    class="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-blue-700 transition"
   >
-    <p class="text-sm text-gray-500">
-      Drag & drop your file here, or click below
-    </p>
-    <input
-      type="file"
-      class="hidden"
-      id="fileInput"
-      [attr.accept]="data.accept"
-      [attr.multiple]="data.multiple ? true : null"
-      (change)="onFileSelected($event)"
-    />
-    <label
-      for="fileInput"
-      class="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-blue-700 transition"
-    >
-      Browse Files
-    </label>
-  </div>
+    Browse Files
+  </label>
+</div>
 
-  <!-- File list -->
-  <ul *ngIf="selectedFiles.length > 0" class="mt-4 list-disc pl-6 text-sm text-gray-700">
-    <li *ngFor="let file of selectedFiles">{{ file.name }}</li>
-  </ul>
-</mat-dialog-content>
-
-<mat-dialog-actions align="end">
-  <button mat-button (click)="onCancel()">Cancel</button>
-  <button
-    mat-flat-button
-    color="primary"
-    (click)="onUpload()"
-    [disabled]="selectedFiles.length === 0"
-  >
-    Upload
-  </button>
-</mat-dialog-actions>
+<ul *ngIf="selectedFiles.length > 0" class="mt-4 list-disc pl-6 text-sm text-gray-700">
+  <li *ngFor="let file of selectedFiles">{{ file.name }}</li>
+</ul>
