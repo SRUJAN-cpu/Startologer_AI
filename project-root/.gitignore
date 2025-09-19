@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+*.pyc
+
+# Angular
+.angular/
+dist/
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.vscode/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Project specific
+backend/Endpoints/uploads/

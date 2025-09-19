@@ -4,11 +4,10 @@ import { Navbar } from './components/navbar/navbar';
 import { Hero } from './components/hero/hero';
 import { Footer } from './components/footer/footer';
 import { FeatureCard } from './components/feature-card/feature-card';
-import { FileUpload } from './components/file-upload/file-upload';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Navbar, Hero, FeatureCard, FileUpload, Footer],
+  imports: [RouterOutlet, Navbar, Hero, FeatureCard, Footer],
   templateUrl: './app.html',
   styleUrls: ['./app.css']
 })

@@ -1,9 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, EventEmitter, inject, Output } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { CommonModule } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { ApiService } from '../../../services/api.service';
 
 export interface FileUploadDialogData {
   title?: string;
@@ -24,26 +25,24 @@ export interface FileUploadDialogData {
   templateUrl: './file-upload-dialog.html',
 })
 export class FileUploadDialog {
-  public dialogRef = inject(MatDialogRef<FileUploadDialog>);
-  public data: FileUploadDialogData = inject(MAT_DIALOG_DATA);
-
-  selectedFiles: File[] = [];
+   selectedFiles: File[] = [];
   isDragOver = false;
 
-  onFileSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (input.files) {
-      this.selectedFiles = Array.from(input.files);
-    }
+  @Output() filesSelected = new EventEmitter<File[]>();
+
+  onFileSelected(event: any) {
+    const files = Array.from(event.target.files) as File[];
+    this.selectedFiles = files;
+    this.filesSelected.emit(this.selectedFiles);
   }
 
   onDrop(event: DragEvent) {
     event.preventDefault();
-    this.isDragOver = false;
-
     if (event.dataTransfer?.files) {
       this.selectedFiles = Array.from(event.dataTransfer.files);
+      this.filesSelected.emit(this.selectedFiles);
     }
+    this.isDragOver = false;
   }
 
   onDragOver(event: DragEvent) {
@@ -52,15 +51,6 @@ export class FileUploadDialog {
   }
 
   onDragLeave(event: DragEvent) {
-    event.preventDefault();
     this.isDragOver = false;
-  }
-
-  onCancel(): void {
-    this.dialogRef.close();
-  }
-
-  onUpload(): void {
-    this.dialogRef.close(this.selectedFiles);
   }
 }

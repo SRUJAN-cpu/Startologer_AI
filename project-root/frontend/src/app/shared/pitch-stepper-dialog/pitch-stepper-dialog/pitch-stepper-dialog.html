@@ -1,0 +1,83 @@
+<h2 mat-dialog-title>Simple Steps </h2>
+
+<mat-dialog-content>
+  <mat-vertical-stepper linear>
+    
+    <!-- Step 1: Pitch Deck -->
+    <mat-step [stepControl]="pitchDeckForm">
+      <form [formGroup]="pitchDeckForm">
+        <ng-template matStepLabel>Pitch Deck</ng-template>
+
+        <app-file-upload-dialog (filesSelected)="onPitchFilesSelected($event)" />
+        <mat-error *ngIf="pitchDeckForm.get('pitchDeck')?.hasError('required')">
+            Pitch Deck is required
+        </mat-error>
+
+        <div class="mt-4 flex justify-end">
+          <button mat-button matStepperNext [disabled]="!pitchDeckForm.valid">Next</button>
+        </div>
+      </form>
+    </mat-step>
+
+    <!-- Step 2: Call Transcript -->
+    <mat-step [stepControl]="callTranscriptForm">
+      <form [formGroup]="callTranscriptForm">
+        <ng-template matStepLabel>Call Transcript</ng-template>
+
+        <mat-form-field appearance="outline" class="w-full mt-4">
+          <mat-label>Transcript</mat-label>
+        <textarea matInput rows="2" formControlName="callTranscript"></textarea>
+        <mat-error *ngIf="callTranscriptForm.get('callTranscript')?.hasError('required')">
+            Call Transcript is required
+        </mat-error>
+        </mat-form-field>
+
+        <div class="mt-3 flex justify-between">
+          <button mat-button matStepperPrevious>Back</button>
+          <button mat-button matStepperNext [disabled]="!callTranscriptForm.valid">Next</button>
+        </div>
+      </form>
+    </mat-step>
+
+    <!-- Step 3: Founder Update -->
+    <mat-step [stepControl]="founderUpdateForm">
+      <form [formGroup]="founderUpdateForm">
+        <ng-template matStepLabel>Founder Updates</ng-template>
+
+        <mat-form-field appearance="outline" class="w-full mt-4">
+          <mat-label>Founder Update</mat-label>
+          <textarea matInput rows="3" formControlName="founderUpdate"></textarea>
+        </mat-form-field>
+
+        <div class="mt-3 flex justify-between">
+          <button mat-button matStepperPrevious>Back</button>
+          <button mat-button matStepperNext [disabled]="!founderUpdateForm.valid">Next</button>
+        </div>
+      </form>
+    </mat-step>
+
+    <!-- Step 4: Email Data -->
+    <mat-step [stepControl]="emailDataForm">
+      <form [formGroup]="emailDataForm">
+        <ng-template matStepLabel>Email Data</ng-template>
+
+        <mat-form-field appearance="outline" class="w-full mt-4">
+          <mat-label>Email Data</mat-label>
+          <textarea matInput rows="3" formControlName="emailData"></textarea>
+        </mat-form-field>
+
+        <div class="mt-3 flex justify-between">
+          <button mat-button matStepperPrevious>Back</button>
+          <button mat-flat-button color="primary" (click)="onSubmit()" [disabled]="!emailDataForm.valid">
+            Finish & Upload
+          </button>
+        </div>
+      </form>
+    </mat-step>
+
+  </mat-vertical-stepper>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="dialogRef.close()">Cancel</button>
+</mat-dialog-actions>
