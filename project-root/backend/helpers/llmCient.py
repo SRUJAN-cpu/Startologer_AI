@@ -65,7 +65,7 @@ def get_processed_data(details):
     params = {
         "key": GEMINI_API_KEY
     }
-    data = {
+    payload = {
         "contents": [
             {
                 "parts": [
@@ -76,13 +76,12 @@ def get_processed_data(details):
     }
 
     try:
-        response = requests.post(GEMINI_API_URL, headers=headers, params=params, json=data)
-        response.raise_for_status()
+        print("Sending payload:", payload)
+        response = requests.post(GEMINI_API_URL, headers=headers, params=params, json=payload)
+        print("Gemini response:", response.text)
         result = response.json()
-        
         # Extract the generated text from the response
         processed_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        
         return {
             "investment_analysis": processed_text,
             "analysis_type": "startup_evaluation",
@@ -122,6 +121,39 @@ def get_risk_assessment(details):
     Provide a risk score (1-10) and specific concerns.
     """
 
-    # Similar API call structure as above
-    # Implementation follows same pattern
-    pass
+    headers = {
+        "Content-Type": "application/json"
+    }
+    params = {
+        "key": GEMINI_API_KEY
+    }
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+    try:
+        print("Sending risk assessment payload:", payload)
+        response = requests.post(GEMINI_API_URL, headers=headers, params=params, json=payload)
+        print("Gemini risk response:", response.text)
+        result = response.json()
+        risk_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        return {
+            "risk_assessment": risk_text,
+            "analysis_type": "risk_assessment",
+            "timestamp": "2025-09-19"
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "error": f"API request failed: {str(e)}",
+            "risk_assessment": "Risk assessment unavailable due to API error"
+        }
+    except Exception as e:
+        return {
+            "error": f"Processing failed: {str(e)}",
+            "risk_assessment": "Risk assessment unavailable due to processing error"
+        }
