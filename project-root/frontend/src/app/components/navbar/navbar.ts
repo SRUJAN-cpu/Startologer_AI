@@ -1,31 +1,29 @@
 import { Component, inject } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
-import { FileUploadDialog, FileUploadDialogData } from '../../shared/file-upload-dialog/file-upload-dialog/file-upload-dialog';
-import { PitchStepperDialog } from '../../shared/pitch-stepper-dialog/pitch-stepper-dialog/pitch-stepper-dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { SingUp } from '../../auth/sign-up/sing-up';
+import { CommonModule } from '@angular/common';
+import { Login } from '../../auth/login/login';
 
 @Component({
   selector: 'app-navbar',
-  imports: [],
+  standalone: true,
+  imports: [CommonModule, MatDialogModule],
   templateUrl: './navbar.html',
 })
 export class Navbar {
-
   private dialog = inject(MatDialog);
 
-  openFileUploadDialog() {
-      const dialogRef = this.dialog.open<PitchStepperDialog>(
-        PitchStepperDialog,
-        {
-          width: '800px',
-          disableClose: true
-        }
-      );
-  
-      dialogRef.afterClosed().subscribe((files) => {
-        if (files && files.length > 0) {
-          console.log('Selected files:', files);
-          // TODO: send files to backend
-        }
-      });
-    }
+  openLoginDialog() {
+    this.dialog.open(Login, {
+      width: '800px',
+      disableClose: false
+    });
+  }
+
+  openSignUpDialog() {
+    this.dialog.open(SingUp, {
+      width: '800px',
+      disableClose: false
+    });
+  }
 }
