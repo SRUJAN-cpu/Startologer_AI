@@ -1,0 +1,60 @@
+<div
+    class="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 p-6">
+    <mat-card class="w-full max-w-md p-6 shadow-lg rounded-2xl bg-white/90 backdrop-blur-sm border border-gray-200">
+        <mat-card-header>
+            <h2 class="text-3xl font-bold mb-6 text-center text-gray-800">Create Account</h2>
+        </mat-card-header>
+
+        <mat-card-content>
+            <form [formGroup]="form" (ngSubmit)="signup()" class="space-y-4 w-full">
+
+                <!-- Global signup error -->
+                <mat-error *ngIf="error" class="block text-red-500 text-sm mb-2 text-center font-medium">
+                    {{ error }}
+                </mat-error>
+
+                <!-- Email field -->
+                <mat-form-field class="w-full">
+                    <mat-label>Email</mat-label>
+                    <input matInput type="email" placeholder="Enter your email" formControlName="email"
+                        class="bg-white px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 w-full transition" />
+                    <mat-icon matSuffix>email</mat-icon>
+                    <mat-error *ngIf="form.get('email')?.hasError('required') && form.get('email')?.touched">
+                        Email is required
+                    </mat-error>
+                    <mat-error *ngIf="form.get('email')?.hasError('email') && form.get('email')?.touched">
+                        Enter a valid email
+                    </mat-error>
+                </mat-form-field>
+
+                <!-- Password field -->
+                <mat-form-field class="w-full">
+                    <mat-label>Password</mat-label>
+                    <input matInput type="password" placeholder="Enter your password" formControlName="password"
+                        class="bg-white px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 w-full transition" />
+                    <mat-icon matSuffix>lock</mat-icon>
+                    <mat-error *ngIf="form.get('password')?.hasError('required') && form.get('password')?.touched">
+                        Password is required
+                    </mat-error>
+                    <mat-error *ngIf="form.get('password')?.hasError('minlength') && form.get('password')?.touched">
+                        Password must be at least 6 characters
+                    </mat-error>
+                </mat-form-field>
+
+                <!-- Sign Up button -->
+                <div class="flex justify-center">
+                    <button type="submit" [disabled]="form.invalid"
+                        class="w-32 bg-blue-500 text-white py-3 rounded-lg font-medium shadow hover:bg-blue-600 hover:scale-105 transform transition">
+                        Sign Up
+                    </button>
+                </div>
+
+            </form>
+
+            <p class="mt-6 text-center text-sm text-gray-600">
+                Already have an account?
+                <a routerLink="/login" class="text-blue-500 font-medium hover:underline">Login</a>
+            </p>
+        </mat-card-content>
+    </mat-card>
+</div>
