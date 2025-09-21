@@ -5,24 +5,57 @@
   [class.bg-blue-50]="isDragOver"
   (drop)="onDrop($event)"
   (dragover)="onDragOver($event)"
-  (dragleave)="onDragLeave($event)"
+  (dragleave)="onDragLeave()"
 >
-  <p class="text-sm text-gray-500">Drag & drop your file here, or click below</p>
+  <p class="text-sm text-gray-500">Drag & drop your files here, or click below (up to 5)</p>
   <input
     type="file"
     class="hidden"
-    id="fileInput"
-    multiple
+    #fileInput
+    accept=".pdf,.doc,.docx,.txt"
     (change)="onFileSelected($event)"
+    multiple
   />
-  <label
-    for="fileInput"
-    class="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-blue-700 transition"
+  <button
+    mat-stroked-button
+    color="primary"
+    class="mt-3"
+    (click)="fileInput.click()"
+    [disabled]="selectedFiles.length >= 5"
   >
     Browse Files
-  </label>
+  </button>
 </div>
 
-<ul *ngIf="selectedFiles.length > 0" class="mt-4 list-disc pl-6 text-sm text-gray-700">
-  <li *ngFor="let file of selectedFiles">{{ file.name }}</li>
-</ul>
+<!-- Selected Files List -->
+<div *ngIf="selectedFiles.length > 0" class="mt-4 space-y-2">
+  <div *ngFor="let file of selectedFiles; let i = index" class="bg-gray-50 p-3 rounded flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <mat-icon>description</mat-icon>
+      <span class="text-sm">{{ file.name }}</span>
+    </div>
+    <button mat-icon-button (click)="removeFile(i)" [disabled]="isLoading">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+</div>
+
+<!-- Error Message -->
+<div *ngIf="error" class="text-red-500 text-sm mt-2">{{ error }}</div>
+
+<!-- Progress Bar -->
+<mat-progress-bar *ngIf="isLoading" mode="indeterminate" class="mt-4"></mat-progress-bar>
+
+<!-- Action Buttons -->
+<div mat-dialog-actions class="mt-6 flex justify-end space-x-2">
+  <button mat-button (click)="onCancel()" [disabled]="isLoading">Cancel</button>
+  <button
+    mat-flat-button
+    color="primary"
+    (click)="onUpload()"
+    [disabled]="selectedFiles.length === 0 || isLoading"
+  >
+    <span *ngIf="!isLoading">Analyze ({{ selectedFiles.length }})</span>
+    <span *ngIf="isLoading">Analyzing...</span>
+  </button>
+</div>

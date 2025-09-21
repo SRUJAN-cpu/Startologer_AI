@@ -4,3 +4,22 @@
 html { scroll-behavior: smooth; }
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+/* Chart layout stabilization */
+#chartsContainer {
+	overscroll-behavior: contain;
+}
+.chart-box {
+	height: 240px;
+	overflow: hidden;
+	contain: layout paint size;
+	position: relative;
+}
+.chart-box.sm {
+	height: 200px;
+}
+.chart-box > canvas {
+	width: 100% !important;
+	height: 100% !important;
+	display: block;
+}

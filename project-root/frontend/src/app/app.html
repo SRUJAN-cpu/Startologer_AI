@@ -1,9 +1,17 @@
-<app-navbar />
-<main class="flex flex-col items-center justify-center space-y-2">
-  <app-hero />
-  <app-feature-card />
-  <!-- <app-file-upload /> -->
-  <!-- <app-contact /> -->
-</main>
-<app-footer />
-<router-outlet />
+
+<!-- When on the home route, show the landing sections -->
+<ng-container *ngIf="isHomeRoute; else routedPage">
+  <app-navbar />
+  <main class="flex flex-col items-center justify-center space-y-2">
+    <app-hero />
+    <app-feature-card />
+    <!-- <app-file-upload /> -->
+    <!-- <app-contact /> -->
+  </main>
+  <app-footer />
+</ng-container>
+
+<!-- For any routed page (e.g., /result-dashboard), render only the routed component -->
+<ng-template #routedPage>
+  <router-outlet />
+</ng-template>

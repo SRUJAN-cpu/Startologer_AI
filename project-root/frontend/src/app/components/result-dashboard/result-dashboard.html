@@ -1,0 +1,194 @@
+<div class="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <button (click)="goHome()" class="inline-flex items-center gap-2 text-gray-700 hover:text-gray-900">
+        <span class="material-icons">arrow_back</span>
+        <span>Back</span>
+      </button>
+    </div>
+    <button (click)="downloadPdf()" [disabled]="!analysis || isGeneratingPdf" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+      {{ isGeneratingPdf ? 'Preparing...' : 'Download PDF' }}
+    </button>
+  </div>
+
+  <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Analysis Dashboard</h1>
+  <div *ngIf="analysis" id="report-content" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Left Column -->
+    <div class="lg:col-span-2 space-y-6">
+      <!-- Executive Summary -->
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-gray-700 mb-3">Executive Summary</h2>
+        <p class="text-gray-600">{{ analysis.executiveSummary }}</p>
+      </div>
+
+      <!-- Risks -->
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-gray-700 mb-3">Key Risks</h2>
+        <div class="space-y-4">
+          <div *ngFor="let risk of analysis.risks" class="border-l-4 p-4 rounded-r-lg" [ngClass]="{
+            'border-red-500 bg-red-50': risk.impact === 'high',
+            'border-yellow-500 bg-yellow-50': risk.impact === 'medium',
+            'border-blue-500 bg-blue-50': risk.impact === 'low'
+          }">
+            <h3 class="font-semibold text-gray-800">{{ risk.factor }} <span class="text-xs font-normal capitalize text-white rounded-full px-2 py-0.5" [ngClass]="{
+              'bg-red-500': risk.impact === 'high',
+              'bg-yellow-500': risk.impact === 'medium',
+              'bg-blue-500': risk.impact === 'low'
+            }">{{ risk.impact }}</span></h3>
+            <p class="text-sm text-gray-600 mt-1">{{ risk.description }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendations -->
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-gray-700 mb-3">Recommendations</h2>
+        <ul class="space-y-3 list-disc list-inside text-gray-600">
+          <li *ngFor="let rec of analysis.recommendations">
+            <span class="font-semibold">{{ rec.title }}:</span> {{ rec.description }}
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="space-y-6">
+      <!-- Market Analysis -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <mat-accordion multi>
+          <mat-expansion-panel closed>
+            <mat-expansion-panel-header>
+              <mat-panel-title class="text-xl font-semibold text-gray-700">Market Analysis</mat-panel-title>
+            </mat-expansion-panel-header>
+    
+            <div class="p-4 space-y-4">
+              <div>
+                <div class="text-gray-600 text-sm">Market Size</div>
+                <div class="font-semibold text-gray-800 break-words whitespace-pre-wrap">{{ analysis.marketAnalysis.marketSize }}</div>
+              </div>
+    
+              <div>
+                <div class="text-gray-600 text-sm">Growth Rate</div>
+                <div class="font-semibold text-gray-800 break-words whitespace-pre-wrap">{{ analysis.marketAnalysis.growthRate }}</div>
+              </div>
+    
+              <div>
+                <div class="text-gray-600 text-sm">Competition</div>
+                <ul class="list-disc list-inside text-gray-800 space-y-1">
+                  <li *ngFor="let item of tokenize(analysis.marketAnalysis.competition)">{{ item }}</li>
+                </ul>
+                <div *ngIf="!tokenize(analysis.marketAnalysis.competition).length" class="font-semibold text-gray-800 break-words whitespace-pre-wrap">{{ analysis.marketAnalysis.competition }}</div>
+              </div>
+    
+              <div>
+                <div class="text-gray-600 text-sm">Barriers to Entry</div>
+                <div class="font-semibold text-gray-800 break-words whitespace-pre-wrap">{{ analysis.marketAnalysis.entryBarriers }}</div>
+              </div>
+    
+              <div>
+                <div class="text-gray-600 text-sm">Regulation</div>
+                <div class="font-semibold text-gray-800 break-words whitespace-pre-wrap">{{ analysis.marketAnalysis.regulation }}</div>
+              </div>
+            </div>
+          </mat-expansion-panel>
+        </mat-accordion>
+      </div>
+
+      <!-- Benchmarks & Score -->
+      <div *ngIf="analysis.benchmarks || analysis.score || analysis?.llmBenchmark?.estimates" class="bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-gray-700 mb-3">Benchmarks</h2>
+        <div *ngIf="hasSectorOrStage()" class="mb-3 flex flex-wrap items-center gap-2">
+          <div *ngIf="getSectorChips().length > 0" class="flex items-center gap-2">
+            <span class="text-xs uppercase tracking-wide text-gray-500">Sector</span>
+            <ng-container *ngFor="let s of getSectorChips()">
+              <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs">{{ s }}</span>
+            </ng-container>
+          </div>
+          <span *ngIf="getSectorChips().length > 0 && getStageLabel()" class="text-gray-300">|</span>
+          <div *ngIf="getStageLabel()" class="flex items-center gap-2">
+            <span class="text-xs uppercase tracking-wide text-gray-500">Stage</span>
+            <span class="px-2 py-0.5 rounded-full text-white text-xs" [ngClass]="stageClass(getStageLabel())">{{ getStageLabel() }}</span>
+          </div>
+        </div>
+
+        <!-- Prefer benchmark estimates (model-assisted) when available; fallback to dataset benchmarks -->
+        <ng-container *ngIf="analysis?.llmBenchmark?.estimates as llmEstimates; else csvBench">
+          <div *ngIf="(llmEstimates | keyvalue).length" class="divide-y divide-gray-100 border border-gray-100 rounded-md">
+            <div *ngFor="let kv of (llmEstimates | keyvalue)" class="grid grid-cols-2 gap-2 p-3">
+              <div class="text-gray-600">{{ metricLabel(kv.key) }}</div>
+              <div class="text-gray-800 text-right">
+                <span class="text-gray-500">median </span>
+                <span class="font-semibold">{{ kv.value.median | number:'1.0-2' }}</span>
+                <span class="text-gray-500"> {{ kv.value.unit || '' }}</span>
+                <span *ngIf="analysis.llmBenchmark?.relative?.[kv.key] as rel" class="ml-2 px-2 py-0.5 rounded-full text-white text-xs"
+                  [ngClass]="{
+                    'bg-green-600': rel === 'above',
+                    'bg-amber-600': rel === 'near',
+                    'bg-red-600': rel === 'below'
+                  }">{{ rel }}</span>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        <ng-template #csvBench>
+          <div *ngIf="analysis.benchmarks && (analysis.benchmarks | keyvalue).length" class="divide-y divide-gray-100 border border-gray-100 rounded-md">
+            <div *ngFor="let k of (analysis.benchmarks | keyvalue)" class="grid grid-cols-2 gap-2 p-3">
+              <div class="text-gray-600">{{ metricLabel(k.key) }}</div>
+              <div class="text-gray-800 text-right">
+                <span class="font-semibold">{{ k.value.companyValue | number:'1.0-2' }}</span>
+                <span class="text-gray-500"> · median {{ k.value.median | number:'1.0-2' }}</span>
+                <span class="ml-2 px-2 py-0.5 rounded-full text-white text-xs"
+                  [ngClass]="k.value.status === 'above' ? 'bg-green-600' : 'bg-amber-600'">{{ k.value.status }}</span>
+              </div>
+            </div>
+          </div>
+        </ng-template>
+        <div *ngIf="analysis.score?.composite !== null" class="mt-4">
+          <div class="text-gray-600 text-sm">Composite Score</div>
+          <div class="text-2xl font-bold text-gray-800">{{ (analysis.score?.composite || 0) | number:'1.0-2' }}
+            <span class="ml-2 text-sm px-2 py-0.5 rounded-full text-white"
+              [ngClass]="{
+                'bg-green-600': analysis.score?.verdict === 'Proceed',
+                'bg-amber-600': analysis.score?.verdict === 'Track',
+                'bg-red-600': analysis.score?.verdict === 'Pass'
+              }">{{ analysis.score?.verdict }}</span>
+          </div>
+        </div>
+
+  <!-- Charts: Dynamic visualizations -->
+  <div id="chartsContainer" class="mt-6 grid grid-cols-1 gap-6">
+          <!-- Radar: Metric Percentiles -->
+          <div *ngIf="hasBenchOrEstimates()" class="bg-white border border-gray-100 rounded-md p-4 overflow-hidden">
+            <div class="text-sm text-gray-600 mb-2">Metric Percentiles</div>
+            <div class="chart-box">
+              <canvas id="radarChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Bars: Company vs Median -->
+          <div *ngIf="hasBenchOrEstimates()" class="bg-white border border-gray-100 rounded-md p-4 overflow-hidden">
+            <div class="text-sm text-gray-600 mb-2">Company vs Median</div>
+            <div class="chart-box">
+              <canvas id="barChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Doughnut: Composite Score -->
+          <div *ngIf="analysis.score?.composite !== null" class="bg-white border border-gray-100 rounded-md p-4 overflow-hidden">
+            <div class="text-sm text-gray-600 mb-2">Composite Score</div>
+            <div class="chart-box sm">
+              <canvas id="doughnutChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+
+    </div>
+  </div>
+
+  <div *ngIf="!analysis" class="text-center py-20">
+    <p class="text-gray-500 text-lg">No analysis data available. Please go back and upload documents to see the results.</p>
+  </div>
+</div>
