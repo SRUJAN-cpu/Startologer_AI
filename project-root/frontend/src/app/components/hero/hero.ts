@@ -1,31 +1,33 @@
 import { Component, inject } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { PitchStepperDialog } from '../../shared/pitch-stepper-dialog/pitch-stepper-dialog/pitch-stepper-dialog';
+import { Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
+import { FileUploadDialog } from '../../shared/file-upload-dialog/file-upload-dialog/file-upload-dialog';
 
 @Component({
   selector: 'app-hero',
-  imports: [],
+  standalone: true,
+  imports: [CommonModule, MatButtonModule],
   templateUrl: './hero.html',
-  styles: ``
+  styles: [`:host { display: block; width: 100%; }`]
 })
 export class Hero {
-
   private dialog = inject(MatDialog);
+  private router = inject(Router);
 
-  openFileUploadDialog() {
-    const dialogRef = this.dialog.open<PitchStepperDialog>(
-      PitchStepperDialog,
-      {
-        width: '800px',
-        disableClose: true
-      }
-    );
-
-    dialogRef.afterClosed().subscribe((files) => {
-      if (files && files.length > 0) {
-        console.log('Selected files:', files);
-        // TODO: send files to backend
-      }
+  async startDemo() {
+    const dialogRef = this.dialog.open(FileUploadDialog, {
+      width: '600px',
+      disableClose: true,
+      data: { isDemo: true }
     });
+
+    const result = await dialogRef.afterClosed().toPromise();
+    if (result) {
+      this.router.navigate(['/result-dashboard'], { 
+        state: { analysis: result }
+      });
+    }
   }
 }

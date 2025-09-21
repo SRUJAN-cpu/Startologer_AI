@@ -1,9 +1,19 @@
 import requests
 import os
+from dotenv import load_dotenv, find_dotenv
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-# GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")  # Use environment variable
-GEMINI_API_KEY="AIzaSyCAvvBdIkwW3AW7M9DJnqd0BvagKd4_3yc"
+# Load environment variables (from a local .env file, if present; search upwards)
+_dotenv_path = find_dotenv(usecwd=True)
+if _dotenv_path:
+    load_dotenv(_dotenv_path)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# Diagnostic log (non-sensitive): whether key exists
+try:
+    print(f"[llmCient] GEMINI_API_KEY present: {bool(GEMINI_API_KEY)} (loaded from: {_dotenv_path or 'env only'})")
+except Exception:
+    pass
 
 def get_processed_data(details):
     """
@@ -76,6 +86,11 @@ def get_processed_data(details):
     }
 
     try:
+        if not GEMINI_API_KEY:
+            return {
+                "error": "GEMINI_API_KEY not configured",
+                "investment_analysis": "Analysis unavailable: missing API key"
+            }
         print("Sending payload:", payload)
         response = requests.post(GEMINI_API_URL, headers=headers, params=params, json=payload)
         print("Gemini response:", response.text)
@@ -137,6 +152,11 @@ def get_risk_assessment(details):
         ]
     }
     try:
+        if not GEMINI_API_KEY:
+            return {
+                "error": "GEMINI_API_KEY not configured",
+                "risk_assessment": "Risk assessment unavailable: missing API key"
+            }
         print("Sending risk assessment payload:", payload)
         response = requests.post(GEMINI_API_URL, headers=headers, params=params, json=payload)
         print("Gemini risk response:", response.text)

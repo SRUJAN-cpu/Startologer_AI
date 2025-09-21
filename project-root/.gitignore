@@ -7,6 +7,12 @@ __pycache__/
 venv/
 ENV/
 *.pyc
+.venv/
+env/
+.env
+backend/.env
+backend/uploads/
+backend/**/__pycache__/
 
 # Angular
 .angular/
@@ -14,6 +20,10 @@ dist/
 node_modules/
 npm-debug.log
 yarn-error.log
+coverage/
+frontend/.angular/
+frontend/dist/
+frontend/node_modules/
 
 # IDEs and editors
 .idea/
@@ -23,6 +33,7 @@ yarn-error.log
 *.launch
 .settings/
 .vscode/
+.history/
 
 # System Files
 .DS_Store
@@ -30,3 +41,5 @@ Thumbs.db
 
 # Project specific
 backend/Endpoints/uploads/
+uploads/
+**/*.log

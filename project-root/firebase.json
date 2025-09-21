@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "public": "frontend/dist/frontend/browser",
+    "ignore": [
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "startologer-backend",
+          "region": "us-central1"
+        }
+      },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+}
