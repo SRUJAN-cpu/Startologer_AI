@@ -145,6 +145,10 @@ def analyze_documents():
     Analyzes one or more uploaded documents.
     For now, it saves the files and returns a dummy analysis result.
     """
+    print("="*80)
+    print("[backend] ✓✓✓ /api/analyze endpoint HIT - NEW CODE LOADED ✓✓✓")
+    print("="*80)
+
     # Demo mode can be flagged via form field or header
     is_demo = (request.form.get('isDemo') == 'true') or (request.headers.get('X-Trial') == 'true')
     if not is_demo:
@@ -178,18 +182,40 @@ def analyze_documents():
                 pass
 
     if not extracted_chunks:
-        print("No text could be extracted from uploaded files.")
+        print("[backend] WARNING: No text could be extracted from uploaded files.")
 
     combined_text = "\n\n".join(extracted_chunks)
-    print(f"Received {len(saved_files)} files for analysis: {', '.join(saved_files)}")
+    print(f"[backend] Received {len(saved_files)} files for analysis: {', '.join(saved_files)}")
+    print(f"[backend] Extracted text length: {len(combined_text)} characters")
+    print(f"[backend] Text preview (first 500 chars): {combined_text[:500]}")
 
     # Call analysis helper (uses Gemini if configured; otherwise returns fallback) and propagate status
+    print("[backend] Calling analyze_combined_text...")
     result = analyze_combined_text(combined_text)
     llm_ok = bool(result.get('llmStatus', {}).get('ok'))
+    print(f"[backend] analyze_combined_text completed. LLM OK: {llm_ok}")
 
     # Extract metrics and infer cohort for benchmarking
+    # Use try/except to ensure this doesn't block the entire response
+    bench = {}
+    metrics = {}
+    sector = 'saas'
+    stage = 'seed'
+
     try:
+        # Try regex-based extraction first (fast)
         metrics = extract_metrics(combined_text)
+
+        # If LLM is available, also try LLM-based extraction (more comprehensive)
+        if llm_ok:
+            try:
+                from helpers.analysis_helper import extract_metrics_with_llm
+                llm_metrics = extract_metrics_with_llm(combined_text)
+                # Merge: LLM results take precedence
+                metrics = {**metrics, **llm_metrics}
+            except Exception as e:
+                print(f"[backend] LLM metric extraction failed: {e}")
+
         sector = (metrics.get('sector') or '').strip().lower()
         stage = (metrics.get('stage') or '').strip().lower()
         cohort_source = 'extracted' if (sector and stage) else 'default'
@@ -201,7 +227,7 @@ def analyze_documents():
             sector = sector or guess.get('sector') or ''
             stage = stage or guess.get('stage') or ''
         # Normalize a few common variants
-        sector = (sector or '').replace('&', ' and ').replace('/', ' ').strip() or 'resale'
+        sector = (sector or '').replace('&', ' and ').replace('/', ' ').strip() or 'saas'
         stage = (stage or '').replace('pre seed', 'pre-seed').replace('preseed', 'pre-seed').strip() or 'seed'
 
         bench = benchmark_metrics(metrics, sector, stage)
@@ -213,17 +239,56 @@ def analyze_documents():
         result['extractedMetrics']['stage'] = stage
         result['cohort'] = { 'sector': sector, 'stage': stage, 'source': cohort_source }
         result['benchmarks'] = bench
-        # Optional: LLM-estimated benchmark context (qualitative + rough medians) only if LLM healthy
-        if llm_ok:
-            try:
-                llm_est = infer_benchmark_estimates(combined_text, sector, stage, metrics)
-                if llm_est:
-                    result['llmBenchmark'] = llm_est
-            except Exception:
-                pass
         result['score'] = score
     except Exception as e:
-        print(f"[backend] metrics/benchmark failed: {e}")
+        print(f"[backend] metrics/benchmark calculation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        # Set defaults so the rest of the flow works
+        result.setdefault('extractedMetrics', {})
+        result['extractedMetrics']['sector'] = sector
+        result['extractedMetrics']['stage'] = stage
+        result['cohort'] = { 'sector': sector, 'stage': stage, 'source': 'default' }
+        result['benchmarks'] = {}
+        result['score'] = {'composite': None, 'verdict': 'Insufficient Data'}
+
+    # ALWAYS get benchmark estimates (will use LLM if available, otherwise defaults)
+    # This ensures charts always have data to display
+    # This is outside the try block above so it runs even if benchmark calculation fails
+    try:
+        print(f"[DEBUG] Calling infer_benchmark_estimates with sector={sector}, stage={stage}")
+        llm_est = infer_benchmark_estimates(combined_text, sector, stage, metrics)
+        print(f"[DEBUG] llmBenchmark result type: {type(llm_est)}, value: {llm_est}")
+        if llm_est and isinstance(llm_est, dict) and llm_est.get('estimates'):
+            result['llmBenchmark'] = llm_est
+            print(f"[DEBUG] llmBenchmark set with {len(llm_est.get('estimates', {}))} estimates")
+        else:
+            print(f"[DEBUG] llmBenchmark invalid or empty (llm_est={llm_est}), using fallback")
+            # Force set default benchmarks if nothing was returned
+            from helpers.analysis_helper import _get_default_benchmarks
+            fallback = _get_default_benchmarks(sector, stage)
+            print(f"[DEBUG] Fallback benchmarks: {fallback}")
+            result['llmBenchmark'] = fallback
+            print(f"[DEBUG] Set llmBenchmark to fallback with {len(fallback.get('estimates', {}))} estimates")
+    except Exception as e:
+        print(f"[backend] llmBenchmark estimation failed: {e}, using fallback")
+        import traceback
+        traceback.print_exc()
+        # Force set default benchmarks on exception
+        try:
+            from helpers.analysis_helper import _get_default_benchmarks
+            fallback = _get_default_benchmarks(sector, stage)
+            result['llmBenchmark'] = fallback
+            print(f"[DEBUG] Exception fallback set with {len(fallback.get('estimates', {}))} estimates")
+        except Exception as e2:
+            print(f"[backend] Even fallback failed: {e2}")
+            import traceback as tb
+            tb.print_exc()
+
+    print(f"[DEBUG] Final benchmarks count: {len(result.get('benchmarks', {}))}")
+    print(f"[DEBUG] Has llmBenchmark in result: {'llmBenchmark' in result}")
+    print(f"[DEBUG] llmBenchmark estimates: {len(result.get('llmBenchmark', {}).get('estimates', {}))}")
+    print(f"[DEBUG] llmBenchmark value before JSON: {result.get('llmBenchmark')}")
 
     # Ensure we never surface a placeholder for regulation. If missing or placeholder-like, synthesize a brief, sector-aware note.
     try:
@@ -253,8 +318,44 @@ def analyze_documents():
     except Exception:
         pass
 
-    return jsonify(result)
+    # Final check before sending
+    print(f"[DEBUG] FINAL result keys: {list(result.keys())}")
+    print(f"[DEBUG] FINAL llmBenchmark in result: {result.get('llmBenchmark') is not None}")
+
+    # Add explicit JSON serialization test to see if there's an encoding issue
+    import json as json_lib
+    try:
+        json_string = json_lib.dumps(result, default=str)
+        print(f"[DEBUG] JSON serialization successful, length: {len(json_string)}")
+        # Check if llmBenchmark is in the serialized string
+        has_llm_benchmark_in_json = '"llmBenchmark"' in json_string
+        print(f"[DEBUG] 'llmBenchmark' found in JSON string: {has_llm_benchmark_in_json}")
+        if has_llm_benchmark_in_json:
+            # Find and print a snippet around llmBenchmark
+            idx = json_string.find('"llmBenchmark"')
+            snippet = json_string[max(0, idx-50):min(len(json_string), idx+200)]
+            print(f"[DEBUG] llmBenchmark JSON snippet: {snippet}")
+    except Exception as e:
+        print(f"[DEBUG] JSON serialization test failed: {e}")
+
+    json_response = jsonify(result)
+    # Explicitly set content type to ensure proper JSON handling
+    json_response.headers['Content-Type'] = 'application/json'
+
+    # One final check: verify the response data contains llmBenchmark
+    try:
+        response_data = json_response.get_json()
+        has_llm = 'llmBenchmark' in response_data
+        print(f"[DEBUG] Response JSON object has llmBenchmark: {has_llm}")
+        if has_llm:
+            print(f"[DEBUG] Response llmBenchmark keys: {list(response_data['llmBenchmark'].keys())}")
+    except Exception as e:
+        print(f"[DEBUG] Could not verify response JSON: {e}")
+
+    print(f"[DEBUG] Response prepared with Content-Type header, returning to client")
+    return json_response
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Disable reloader to prevent infinite restart loops
+    app.run(debug=True, use_reloader=False)

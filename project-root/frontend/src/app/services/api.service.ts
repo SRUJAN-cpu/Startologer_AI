@@ -55,7 +55,9 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly trial = inject(TrialService);
 
-  constructor() {}
+  constructor() {
+    console.log('[ApiService] Backend API URL:', this.apiUrl);
+  }
 
   private detectApiBase(): string {
     // 1) If a meta tag sets API base, use it (lets you point to Render/ngrok without code changes):
@@ -97,12 +99,16 @@ export class ApiService {
   }
 
   async analyzeDocument(files: File[], isDemo: boolean = false): Promise<AnalysisResult> {
+    console.log('[ApiService] analyzeDocument called with', files.length, 'files, isDemo:', isDemo);
+    console.log('[ApiService] Uploading to:', `${this.apiUrl}/api/analyze`);
+
     const formData = new FormData();
     files.forEach((file, index) => {
+      console.log('[ApiService] Adding file:', file.name, 'size:', file.size);
       formData.append(`file${index}`, file, file.name);
     });
     formData.append('isDemo', String(isDemo));
-    
+
     let headers = new HttpHeaders().set('Accept', 'application/json');
     if (isDemo) {
       headers = headers.set('X-Trial', 'true');
@@ -110,9 +116,12 @@ export class ApiService {
       const authHeaders = await this.getAuthHeaders();
       headers = authHeaders.headers;
     }
+
+    console.log('[ApiService] Sending HTTP POST request...');
     const response = await firstValueFrom(
       this.http.post<AnalysisResult>(`${this.apiUrl}/api/analyze`, formData, { headers })
     );
+    console.log('[ApiService] Received response:', response);
     
     // If this is a demo, mark one trial credit as used
     if (isDemo) {
