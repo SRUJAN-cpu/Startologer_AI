@@ -5,7 +5,7 @@ import { ResultDashboard } from './components/result-dashboard/result-dashboard'
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./auth/login/login').then(m => m.Login) },
-  { path: 'signup', loadComponent: () => import('./auth/sign-up/sing-up').then(m => m.SingUp) },
+  { path: 'signup', loadComponent: () => import('./auth/sign-up/sign-up.component').then(m => m.SignUp) },
   { path: 'result-dashboard', component: ResultDashboard },
   { path: 'dashboard', component: App, canActivate: [AuthGuard] },
   { path: '', component: App }

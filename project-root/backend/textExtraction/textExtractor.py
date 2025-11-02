@@ -46,3 +46,4 @@ def extract_text(file_path):
         return extract_text_from_txt(file_path)
     else:
         raise ValueError("Unsupported file type: {}".format(ext))
+

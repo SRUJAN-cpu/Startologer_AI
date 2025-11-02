@@ -1,0 +1,56 @@
+# Git files
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.pytest_cache
+.coverage
+htmlcov
+venv
+env
+
+# Node.js
+node_modules
+npm-debug.log*
+.npm
+
+# Angular
+frontend/dist
+frontend/.angular
+frontend/node_modules
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Deployment
+*.md
+DEPLOYMENT_GUIDE.md
+QUICK_DEPLOY.md
+COMPLETE_SETUP_GUIDE.md
+deploy.sh
+
+# Environment files (secrets should be passed via Cloud Run env vars)
+.env
+.env.local
+backend/serviceAccountKey.json
+
+# Uploads (temporary files)
+backend/uploads

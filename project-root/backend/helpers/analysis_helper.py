@@ -3,8 +3,8 @@ import requests
 from typing import Dict, Any
 from dotenv import load_dotenv, find_dotenv
 
-# Use v1 with gemini-2.5-flash model (confirmed working)
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
+# Prefer a current Gemini model/endpoint; many older v1beta models are deprecated
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 def _ensure_api_key_loaded() -> str | None:
     """Try to obtain GEMINI_API_KEY; attempt .env loads if missing."""
@@ -290,32 +290,36 @@ def infer_benchmark_estimates(text: str, sector: str, stage: str, metrics: Dict[
     """
     api_key = _ensure_api_key_loaded()
     if not api_key:
-        # Return default benchmarks when API key is not available
-        return _get_default_benchmarks(sector, stage)
+        return {}
 
     # Include metrics we have values for
     present = {k: v for k, v in (metrics or {}).items() if v is not None}
 
-    # Build different prompts based on whether we have metrics
+    # Build prompt based on whether we have metrics or not
     if present:
         prompt = (
-            "You are a VC analyst. Based on the documents and the cohort, suggest typical medians for the given metrics "
+            "You are a VC analyst. Based on the documents and the cohort, suggest typical medians for key startup metrics "
             "and qualitatively compare the company's values vs those medians. Output STRICT JSON only with this schema:\n"
             "{\n  \"cohort\": {\"sector\": string, \"stage\": string},\n  \"estimates\": { [metric: string]: { \"median\": number, \"unit\": string } },\n  \"relative\": { [metric: string]: \"above\"|\"near\"|\"below\" },\n  \"notes\": string\n}\n\n"
             f"Cohort: sector='{sector}', stage='{stage}'.\n"
             f"Company metrics (unit as implied): {present}.\n"
-            "Use conservative, broadly-cited figures for early-stage startups. If uncertain for a metric, omit it."
+            "Provide benchmark medians for common metrics like ARR/MRR, growth rate, churn, CAC, LTV, gross margin. "
+            "Use conservative, broadly-cited figures for early-stage startups."
         )
     else:
-        # When no metrics extracted, ask for typical benchmarks for the cohort
         prompt = (
-            "You are a VC analyst. Provide typical benchmark medians for a startup in this cohort. "
+            "You are a VC analyst. Provide typical benchmark medians for a startup with the given cohort. "
             "Output STRICT JSON only with this schema:\n"
             "{\n  \"cohort\": {\"sector\": string, \"stage\": string},\n  \"estimates\": { [metric: string]: { \"median\": number, \"unit\": string } },\n  \"notes\": string\n}\n\n"
             f"Cohort: sector='{sector}', stage='{stage}'.\n"
-            "Include common SaaS metrics: ARR/MRR (USD), growthYoY (as decimal like 0.5 for 50%), churnRate (as decimal), "
-            "CAC (USD), LTV (USD), grossMargin (as decimal like 0.7 for 70%). "
-            "Use conservative, industry-standard figures for this stage and sector."
+            "Include common metrics like:\n"
+            "- ARR/MRR (in USD)\n"
+            "- Growth rate YoY (as decimal, e.g., 0.5 for 50%)\n"
+            "- Churn rate (as decimal)\n"
+            "- CAC (Customer Acquisition Cost in USD)\n"
+            "- LTV (Lifetime Value in USD)\n"
+            "- Gross margin (as decimal)\n"
+            "Use conservative, broadly-cited figures for this stage/sector."
         )
 
     payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
@@ -356,10 +360,104 @@ def infer_benchmark_estimates(text: str, sector: str, stage: str, metrics: Dict[
             "notes": obj.get("notes") or "Estimates are directional; validate against dataset medians for the cohort."
         }
         return out
-    except Exception as e:
-        # If LLM call fails, return default benchmarks
-        print(f"[analysis_helper] LLM benchmark estimation exception: {e}, using defaults")
-        return _get_default_benchmarks(sector, stage)
+    except Exception:
+        return {}
+
+
+def extract_metrics_with_llm(text: str) -> Dict[str, Any]:
+    """
+    Use LLM to extract financial/business metrics from startup documents.
+    Returns a dict with metric names as keys and numeric values.
+    """
+    api_key = _ensure_api_key_loaded()
+    if not api_key:
+        return {}
+
+    prompt = f"""
+You are extracting key financial and business metrics from a startup pitch deck or business document.
+Output STRICT JSON with the metrics you can find. Use these exact keys when you find the data:
+
+{{
+  "arr": number,           // Annual Recurring Revenue in USD (convert if needed)
+  "mrr": number,           // Monthly Recurring Revenue in USD (convert if needed)
+  "growthYoY": number,     // Year-over-Year growth as decimal (e.g., 0.5 for 50%)
+  "growthMoM": number,     // Month-over-Month growth as decimal (e.g., 0.1 for 10%)
+  "churnRate": number,     // Customer churn rate as decimal (e.g., 0.05 for 5%)
+  "cac": number,           // Customer Acquisition Cost in USD
+  "ltv": number,           // Lifetime Value in USD
+  "grossMargin": number,   // Gross margin as decimal (e.g., 0.7 for 70%)
+  "headcount": number,     // Number of employees
+  "runwayMonths": number,  // Cash runway in months
+  "revenue": number,       // Current revenue in USD (if ARR/MRR not specified)
+  "sector": string,        // Business sector (e.g., "saas", "fintech", "healthtech")
+  "stage": string          // Funding stage (e.g., "seed", "series-a", "series-b")
+}}
+
+IMPORTANT RULES:
+- Only include metrics you can find in the document
+- Convert all percentages to decimals (50% = 0.5)
+- Convert all currency to USD if possible
+- Convert Indian notation (Cr, Lakh) to USD: 1 Cr INR ≈ 120,000 USD, 1 Lakh INR ≈ 1,200 USD
+- If a metric is not explicitly stated, do NOT include it
+- Output ONLY valid JSON, no explanations
+
+DOCUMENT:
+{text[:10000]}
+"""
+
+    payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+    headers = {"Content-Type": "application/json"}
+    params = {"key": api_key}
+
+    try:
+        resp = requests.post(GEMINI_API_URL, headers=headers, params=params, json=payload, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        raw_text = (
+            data.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "")
+        )
+
+        import json
+        cleaned = _strip_code_fences(raw_text)
+
+        try:
+            metrics = json.loads(cleaned)
+            # Filter out None values and non-numeric values for numeric fields
+            numeric_fields = ['arr', 'mrr', 'growthYoY', 'growthMoM', 'churnRate', 'cac',
+                            'ltv', 'grossMargin', 'headcount', 'runwayMonths', 'revenue']
+            result = {}
+            for key, value in metrics.items():
+                if key in numeric_fields:
+                    if isinstance(value, (int, float)) and value is not None:
+                        result[key] = float(value)
+                else:
+                    # Keep string fields like sector/stage
+                    if value and isinstance(value, str):
+                        result[key] = value
+            return result
+        except Exception:
+            maybe = _extract_json_object(cleaned)
+            if maybe:
+                try:
+                    metrics = json.loads(maybe)
+                    result = {}
+                    for key, value in metrics.items():
+                        if key in ['arr', 'mrr', 'growthYoY', 'growthMoM', 'churnRate', 'cac',
+                                  'ltv', 'grossMargin', 'headcount', 'runwayMonths', 'revenue']:
+                            if isinstance(value, (int, float)) and value is not None:
+                                result[key] = float(value)
+                        else:
+                            if value and isinstance(value, str):
+                                result[key] = value
+                    return result
+                except Exception:
+                    pass
+            return {}
+    except Exception:
+        return {}
 
 
 def gemini_ping() -> Dict[str, Any]:
