@@ -12,7 +12,7 @@ import { MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'app-sing-up',
+  selector: 'app-sign-up',
   imports: [CommonModule, ReactiveFormsModule,
     MatCardModule,
     MatFormFieldModule,
@@ -23,14 +23,14 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
     RouterModule,
   ],
   standalone: true,
-  templateUrl: './sing-up.html',
+  templateUrl: './sign-up.component.html',
 })
-export class SingUp {
+export class SignUp {
 
   private auth = inject(AuthService);
   private router = inject(Router);
   private formBuilder = inject(FormBuilder);
-  private dialogRef = inject(MatDialogRef<SingUp>);
+  private dialogRef = inject(MatDialogRef<SignUp>);
   private snackBar = inject(MatSnackBar);
 
   error = '';

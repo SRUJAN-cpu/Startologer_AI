@@ -1,5 +1,7 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session, send_from_directory, send_file
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from firebase_admin import credentials, initialize_app, auth as firebase_auth
 from werkzeug.utils import secure_filename
 import os, sys
@@ -10,6 +12,8 @@ from textExtraction.textExtractor import extract_text
 from helpers.analysis_helper import analyze_combined_text, gemini_ping, infer_cohort, infer_benchmark_estimates
 from helpers.metric_extractor import extract_metrics
 from services.benchmark_service import benchmark_metrics, score_from_benchmarks, reload_benchmarks, get_benchmark_source_info
+from agents.orchestrator import get_orchestrator
+from services.firestore_service import get_firestore_service
 try:
     from dotenv import load_dotenv, find_dotenv
 except Exception:
@@ -30,21 +34,67 @@ else:
     print("[backend] serviceAccountKey.json not found; Firebase features disabled. Demo mode only.")
 
 app = Flask(__name__)
-# Broaden CORS to simplify fast external hosting (Render/ngrok/Cloudflare Tunnel)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex())
+app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_FILE_SIZE_MB', 10)) * 1024 * 1024  # Default 10MB
+
+# Rate limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=[os.environ.get('RATELIMIT_DEFAULT', '100 per hour')],
+    storage_uri=os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
+)
+print(f"[Flask] Rate limiting enabled: {os.environ.get('RATELIMIT_DEFAULT', '100 per hour')}")
+
+# CORS Configuration - Restrict to specific origins in production
+ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '*').split(',')
+if ALLOWED_ORIGINS == ['*']:
+    print("[WARNING] CORS is wide open. Set ALLOWED_ORIGINS env var for production!")
+
 CORS(app, resources={
     r"/*": {
-        "origins": "*",
+        "origins": ALLOWED_ORIGINS,
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Trial"],
         "expose_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": False
+        "supports_credentials": ALLOWED_ORIGINS != ['*']
     }
 })
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 input_service = InputProcessService(upload_folder=UPLOAD_FOLDER)
-last_processed_result = None
+firestore_service = get_firestore_service()
+
+# File cleanup utility
+def cleanup_files(file_paths):
+    """Remove uploaded files after processing"""
+    for path in file_paths:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+                print(f"[cleanup] Removed {path}")
+        except Exception as e:
+            print(f"[cleanup] Failed to remove {path}: {e}")
+
+# Error handlers
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Handle file size limit exceeded"""
+    max_size = app.config.get('MAX_CONTENT_LENGTH', 0) / (1024 * 1024)
+    return jsonify({
+        "error": "File size limit exceeded",
+        "details": f"Maximum allowed file size is {max_size:.0f}MB"
+    }), 413
+
+@app.errorhandler(429)
+def ratelimit_handler(error):
+    """Handle rate limit exceeded"""
+    return jsonify({
+        "error": "Rate limit exceeded",
+        "details": "You have made too many requests. Please try again later.",
+        "retry_after": error.description
+    }), 429
 
 def verify_token():
     if not FIREBASE_ENABLED:
@@ -120,12 +170,12 @@ def submit():
     if not is_valid:
         return jsonify({'error': error_message}), 400
 
-    global last_processed_result
     result = input_service.process_input_data(form_data, files)
     if not result.get('success'):
         return jsonify({'error': result.get('error')}), 500
 
-    last_processed_result = result
+    # Store in session instead of global variable
+    session['last_processed_result'] = result
     return jsonify(result)
 
 @app.route('/get_processed_details', methods=['GET'])
@@ -134,23 +184,40 @@ def get_processed_details():
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
 
-    global last_processed_result
-    if last_processed_result is None:
+    result = session.get('last_processed_result')
+    if result is None:
         return jsonify({'error': 'No processed data available. Please submit data first.'}), 404
-    return jsonify(last_processed_result)
+    return jsonify(result)
 
 @app.route('/api/analyze', methods=['POST'])
+@limiter.limit("20 per hour")  # Stricter limit for expensive analysis endpoint
 def analyze_documents():
     """
-    Analyzes one or more uploaded documents.
-    For now, it saves the files and returns a dummy analysis result.
+    Analyzes one or more uploaded documents using multi-agent orchestrator.
+    Supports Document AI, Gemini analysis, and benchmark comparison.
     """
     # Demo mode can be flagged via form field or header
     is_demo = (request.form.get('isDemo') == 'true') or (request.headers.get('X-Trial') == 'true')
+    user_id = None
+
     if not is_demo:
         user, error = verify_token()
         if not user:
             return jsonify({"error": "Unauthorized", "details": error}), 401
+        user_id = user.get('uid')
+    else:
+        # Track trial usage
+        ip_address = request.remote_addr or '0.0.0.0'
+        user_agent = request.headers.get('User-Agent', 'Unknown')
+        trial_status = firestore_service.track_trial_usage(ip_address, user_agent)
+
+        if not trial_status.get('allowed'):
+            return jsonify({
+                "error": "Trial limit exceeded",
+                "details": f"You have used {trial_status['trial_count']}/{trial_status['max_trials']} free trials. Please sign up for continued access.",
+                "trial_count": trial_status['trial_count'],
+                "max_trials": trial_status['max_trials']
+            }), 429
 
     if not request.files:
         return jsonify({"error": "No files part in the request"}), 400
@@ -159,102 +226,124 @@ def analyze_documents():
     if not files:
         return jsonify({"error": "No files were provided or files are empty"}), 400
 
-    saved_files = []
-    extracted_chunks = []
+    # Save uploaded files
+    saved_paths = []
+    file_names = []
     for file in files:
         if file and file.filename:
             filename = secure_filename(file.filename)
             saved_path = os.path.join(UPLOAD_FOLDER, filename)
             file.save(saved_path)
-            saved_files.append(filename)
-            try:
-                text = extract_text(saved_path)
-                if text and text.strip():
-                    extracted_chunks.append(f"==== {filename} ===\n{text}")
-            except Exception as e:
-                print(f"Error extracting text from {filename}: {e}")
-            finally:
-                # Optional: keep uploaded files if needed; else clean up
-                pass
+            saved_paths.append(saved_path)
+            file_names.append(filename)
 
-    if not extracted_chunks:
-        print("No text could be extracted from uploaded files.")
+    print(f"[API] Received {len(saved_paths)} files for multi-agent analysis")
 
-    combined_text = "\n\n".join(extracted_chunks)
-    print(f"Received {len(saved_files)} files for analysis: {', '.join(saved_files)}")
-
-    # Call analysis helper (uses Gemini if configured; otherwise returns fallback) and propagate status
-    result = analyze_combined_text(combined_text)
-    llm_ok = bool(result.get('llmStatus', {}).get('ok'))
-
-    # Extract metrics and infer cohort for benchmarking
     try:
-        metrics = extract_metrics(combined_text)
-        sector = (metrics.get('sector') or '').strip().lower()
-        stage = (metrics.get('stage') or '').strip().lower()
-        cohort_source = 'extracted' if (sector and stage) else 'default'
-        # Fallback to LLM inference if missing (only if LLM healthy)
-        if (not sector or not stage) and llm_ok:
-            guess = infer_cohort(combined_text)
-            if guess.get('sector') or guess.get('stage'):
-                cohort_source = 'llm'
-            sector = sector or guess.get('sector') or ''
-            stage = stage or guess.get('stage') or ''
-        # Normalize a few common variants
-        sector = (sector or '').replace('&', ' and ').replace('/', ' ').strip() or 'resale'
-        stage = (stage or '').replace('pre seed', 'pre-seed').replace('preseed', 'pre-seed').strip() or 'seed'
+        # Use multi-agent orchestrator for complete analysis
+        orchestrator = get_orchestrator()
+        result = orchestrator.process(saved_paths)
 
-        bench = benchmark_metrics(metrics, sector, stage)
-        score = score_from_benchmarks(bench)
-        result['extractedMetrics'] = metrics
-        # Also surface the resolved cohort and its source for UI/debug clarity
-        result.setdefault('extractedMetrics', {})
-        result['extractedMetrics']['sector'] = sector
-        result['extractedMetrics']['stage'] = stage
-        result['cohort'] = { 'sector': sector, 'stage': stage, 'source': cohort_source }
-        result['benchmarks'] = bench
-        # Optional: LLM-estimated benchmark context (qualitative + rough medians) only if LLM healthy
-        if llm_ok:
-            try:
-                llm_est = infer_benchmark_estimates(combined_text, sector, stage, metrics)
-                if llm_est:
-                    result['llmBenchmark'] = llm_est
-            except Exception:
-                pass
-        result['score'] = score
+        # Save to Firestore
+        analysis_id = firestore_service.save_analysis(user_id, result, file_names)
+        if analysis_id:
+            result['analysis_id'] = analysis_id
+
+        # Store in session for potential retrieval
+        session['last_analysis_result'] = result
+
+        return jsonify(result)
+
     except Exception as e:
-        print(f"[backend] metrics/benchmark failed: {e}")
+        print(f"[API] Analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "error": "Analysis failed",
+            "details": str(e),
+            "success": False
+        }), 500
 
-    # Ensure we never surface a placeholder for regulation. If missing or placeholder-like, synthesize a brief, sector-aware note.
+    finally:
+        # Always clean up uploaded files
+        cleanup_files(saved_paths)
+
+@app.route('/api/analyses/history', methods=['GET'])
+def get_analysis_history():
+    """Get analysis history for authenticated user"""
+    user, error = verify_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = user.get('uid')
+    limit = request.args.get('limit', 10, type=int)
+
     try:
-        reg = (result.get('marketAnalysis', {}).get('regulation') or '').strip().lower()
-        placeholders = {'n/a', 'na', 'unknown', 'not specified', 'not specified in document', 'none', 'no data'}
-        if (not reg) or (reg in placeholders):
-            # Use resolved sector from extracted metrics or cohort
-            sec_hint = ''
-            try:
-                sec_hint = (result.get('extractedMetrics', {}).get('sector') or result.get('cohort', {}).get('sector') or '').lower()
-            except Exception:
-                sec_hint = ''
-            default_reg = "General compliance considerations include data privacy, information security, and fair business practices; specific licenses may be needed depending on geography and offering."
-            if 'fin' in sec_hint or 'bfsi' in sec_hint or 'payments' in sec_hint:
-                default_reg = "Financial services typically require licensing and ongoing KYC/AML controls; data privacy and PCI-like standards may apply across markets."
-            elif 'health' in sec_hint or 'med' in sec_hint:
-                default_reg = "Healthcare offerings face patient data protection (e.g., HIPAA/GDPR) and clinical/medical device guidelines; consent and record-keeping are critical."
-            elif 'hr' in sec_hint or 'workforce' in sec_hint:
-                default_reg = "HR solutions must align with labor and employment laws, consented data processing, and cross-border transfers under GDPR/DPDP where applicable."
-            elif 'marketplace' in sec_hint or 'ecom' in sec_hint or 'commerce' in sec_hint:
-                default_reg = "Marketplaces must comply with consumer protection, platform liability, taxation, and seller KYC where mandated; data privacy applies."
-            elif 'ai' in sec_hint or 'ml' in sec_hint:
-                default_reg = "AI solutions should address data provenance, privacy, model transparency, and emerging AI governance rules; sector-specific obligations may apply."
-            elif 'saas' in sec_hint or 'software' in sec_hint or 'it' in sec_hint:
-                default_reg = "SaaS platforms generally adhere to data privacy/security (GDPR/DPDP), contractual SLAs, and sector-specific obligations if processing regulated data."
-            result.setdefault('marketAnalysis', {})['regulation'] = default_reg
-    except Exception:
-        pass
+        analyses = firestore_service.get_user_analyses(user_id, limit=limit)
+        return jsonify({
+            "success": True,
+            "analyses": analyses,
+            "count": len(analyses)
+        })
+    except Exception as e:
+        print(f"[API] Error fetching analysis history: {e}")
+        return jsonify({
+            "error": "Failed to fetch analysis history",
+            "details": str(e)
+        }), 500
 
-    return jsonify(result)
+@app.route('/api/analyses/<analysis_id>', methods=['GET'])
+def get_analysis_by_id(analysis_id):
+    """Get a specific analysis by ID"""
+    user, error = verify_token()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
 
+    try:
+        analysis = firestore_service.get_analysis(analysis_id)
+        if not analysis:
+            return jsonify({"error": "Analysis not found"}), 404
+
+        # Verify user owns this analysis
+        if analysis.get('user_id') != user.get('uid'):
+            return jsonify({"error": "Unauthorized access to analysis"}), 403
+
+        return jsonify({
+            "success": True,
+            "analysis": analysis
+        })
+    except Exception as e:
+        print(f"[API] Error fetching analysis: {e}")
+        return jsonify({
+            "error": "Failed to fetch analysis",
+            "details": str(e)
+        }), 500
+
+# ===== Static file serving for Angular frontend =====
+# Path to the compiled Angular app (dist/frontend/browser)
+FRONTEND_DIST = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend_dist')
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_angular(path):
+    """Serve Angular static files or index.html for client-side routing"""
+    # If it's an API route, let Flask handle it (this shouldn't be reached due to /api prefix)
+    if path.startswith('api/'):
+        return jsonify({"error": "API endpoint not found"}), 404
+
+    # Check if the requested file exists in the frontend dist folder
+    if path and os.path.exists(os.path.join(FRONTEND_DIST, path)):
+        return send_from_directory(FRONTEND_DIST, path)
+
+    # For all other routes (including client-side routes), serve index.html
+    index_path = os.path.join(FRONTEND_DIST, 'index.html')
+    if os.path.exists(index_path):
+        return send_file(index_path)
+    else:
+        return jsonify({
+            "error": "Frontend not built",
+            "message": "Please build the Angular frontend first"
+        }), 404
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { SingUp } from '../../auth/sign-up/sing-up';
+import { SignUp } from '../../auth/sign-up/sign-up.component';
 import { CommonModule } from '@angular/common';
 import { Login } from '../../auth/login/login';
 
@@ -21,7 +21,7 @@ export class Navbar {
   }
 
   openSignUpDialog() {
-    this.dialog.open(SingUp, {
+    this.dialog.open(SignUp, {
       width: '800px',
       disableClose: false
     });

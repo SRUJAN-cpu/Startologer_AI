@@ -1,0 +1,48 @@
+# Multi-stage build for Startologer AI
+# Stage 1: Build Angular frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+
+# Install all dependencies (including dev deps needed for build)
+RUN npm ci
+
+# Copy frontend source code
+COPY frontend/ ./
+
+# Build Angular app for production
+RUN npm run build
+
+# Stage 2: Python backend with built frontend
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend requirements and install Python dependencies
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend source code
+COPY backend/ ./
+
+# Copy built Angular frontend from stage 1
+COPY --from=frontend-builder /app/frontend/dist/frontend/browser ./frontend_dist
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+ENV FLASK_ENV=production
+
+# Expose port
+EXPOSE 8080
+
+# Run the Flask application
+CMD ["python", "main.py"]
