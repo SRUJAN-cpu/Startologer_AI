@@ -1,75 +1,150 @@
-<section class="w-screen min-h-screen bg-gray-200 pt-8">
-  <div class="px-6">
+<section id="features" class="w-screen min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-20">
+  <div class="max-w-7xl mx-auto px-6">
     <!-- Section Heading -->
-    <div class="text-center mb-12">
-      <h2 class="text-3xl md:text-4xl font-bold text-gray-900">
-        Powerful Features for Smarter Investments
+    <div class="text-center mb-16">
+      <h2 class="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">
+        Powerful Features for <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Smarter Investments</span>
       </h2>
-      <p class="mt-3 text-gray-600 max-w-2xl mx-auto">
-        Startologer helps you cut through the noise with AI-powered insights.
+      <p class="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">
+        Startologer leverages cutting-edge AI to transform hours of analysis into minutes of actionable insights.
       </p>
     </div>
 
     <!-- Feature Grid -->
-    <div class="grid md:grid-cols-4 gap-8 m-10">
-      <!-- Feature 1 -->
-      <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-xl transition-transform transform hover:scale-105 relative group overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-20 blur-2xl transition duration-500"></div>
-        <div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white text-3xl mb-4">
-          📊
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+      <!-- Feature 1: AI Document Analysis -->
+      <div (click)="handleNavigation()" class="group p-8 rounded-2xl bg-white border border-gray-200 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition duration-500"></div>
+        <div class="relative">
+          <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white text-3xl mb-6 shadow-lg">
+            📄
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">AI Document Analysis</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Upload pitch decks, financial statements, or meeting notes. Our AI extracts key metrics, market insights, and business models automatically.
+          </p>
+          <div class="mt-4 flex items-center text-sm text-blue-600 font-semibold">
+            <span>Powered by Gemini AI</span>
+            <svg class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
         </div>
-        <h3 class="relative text-xl font-semibold mb-2">Auto-analyze Pitch Decks</h3>
-        <p class="relative text-gray-600 text-sm">
-          Upload decks & transcripts and let AI generate structured deal notes instantly.
-        </p>
       </div>
 
-      <!-- Feature 2 -->
-      <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-xl transition-transform transform hover:scale-105 relative group overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 opacity-0 group-hover:opacity-20 blur-2xl transition duration-500"></div>
-        <div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-3xl mb-4">
-          ⚡
+      <!-- Feature 2: Benchmark Intelligence -->
+      <div (click)="handleNavigation()" class="group p-8 rounded-2xl bg-white border border-gray-200 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 opacity-0 group-hover:opacity-10 transition duration-500"></div>
+        <div class="relative">
+          <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 text-white text-3xl mb-6 shadow-lg">
+            📊
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">Benchmark Intelligence</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Compare ARR, churn, CAC, LTV against 1,000+ sector benchmarks. See percentile rankings and identify outperformers instantly.
+          </p>
+          <div class="mt-4 flex items-center text-sm text-purple-600 font-semibold">
+            <span>Real-time comparisons</span>
+            <svg class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
         </div>
-        <h3 class="relative text-xl font-semibold mb-2">Benchmark Against Peers</h3>
-        <p class="relative text-gray-600 text-sm">
-          Instantly compare startups with sector benchmarks and traction signals.
-        </p>
       </div>
 
-      <!-- Feature 3 -->
-      <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-xl transition-transform transform hover:scale-105 relative group overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 opacity-0 group-hover:opacity-20 blur-2xl transition duration-500"></div>
-        <div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-red-600 to-orange-600 text-white text-3xl mb-4">
-          🚨
+      <!-- Feature 3: Risk Detection -->
+      <div (click)="handleNavigation()" class="group p-8 rounded-2xl bg-white border border-gray-200 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br from-red-500 via-orange-500 to-yellow-500 opacity-0 group-hover:opacity-10 transition duration-500"></div>
+        <div class="relative">
+          <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-red-600 to-orange-600 text-white text-3xl mb-6 shadow-lg">
+            🚨
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">Smart Risk Detection</h3>
+          <p class="text-gray-600 leading-relaxed">
+            AI identifies red flags like inflated market sizes, suspicious unit economics, or competitive threats you might have missed.
+          </p>
+          <div class="mt-4 flex items-center text-sm text-red-600 font-semibold">
+            <span>Protect your portfolio</span>
+            <svg class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
         </div>
-        <h3 class="relative text-xl font-semibold mb-2">Flag Hidden Risks</h3>
-        <p class="relative text-gray-600 text-sm">
-          Spot inconsistencies, inflated market sizes, or unusual churn patterns before investing.
-        </p>
       </div>
 
-      <!-- Feature 4 (New) -->
-      <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-xl transition-transform transform hover:scale-105 relative group overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-r from-green-400 via-teal-500 to-blue-500 opacity-0 group-hover:opacity-20 blur-2xl transition duration-500"></div>
-        <div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-teal-500 text-white text-3xl mb-4">
-          🚀
+      <!-- Feature 4: Market Analysis -->
+      <div (click)="handleNavigation()" class="group p-8 rounded-2xl bg-white border border-gray-200 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br from-green-500 via-teal-500 to-cyan-500 opacity-0 group-hover:opacity-10 transition duration-500"></div>
+        <div class="relative">
+          <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-green-600 to-teal-600 text-white text-3xl mb-6 shadow-lg">
+            🌍
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">Market Intelligence</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Assess TAM/SAM/SOM, competitive landscape, growth rates, and regulatory challenges with AI-powered market research.
+          </p>
+          <div class="mt-4 flex items-center text-sm text-green-600 font-semibold">
+            <span>Data-driven insights</span>
+            <svg class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
         </div>
-        <h3 class="relative text-xl font-semibold mb-2">Growth & Recommendations</h3>
-        <p class="relative text-gray-600 text-sm">
-          Summarize growth potential and generate investor-ready recommendations tailored to your weightages.
-        </p>
       </div>
-      
-      <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-xl transition-transform transform hover:scale-105 relative group overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-r from-green-400 via-teal-500 to-blue-500 opacity-0 group-hover:opacity-20 blur-2xl transition duration-500"></div>
-        <div class="relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-teal-500 text-white text-3xl mb-4">
-          ⏱
+
+      <!-- Feature 5: Investment Scoring -->
+      <div (click)="handleNavigation()" class="group p-8 rounded-2xl bg-white border border-gray-200 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-500 opacity-0 group-hover:opacity-10 transition duration-500"></div>
+        <div class="relative">
+          <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white text-3xl mb-6 shadow-lg">
+            🎯
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">Composite Scoring</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Get weighted investment scores (Proceed/Track/Pass) based on growth, retention, margins, and your custom criteria.
+          </p>
+          <div class="mt-4 flex items-center text-sm text-indigo-600 font-semibold">
+            <span>Customizable weights</span>
+            <svg class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
         </div>
-        <h3 class="relative text-xl font-semibold mb-2">Will be more</h3>
-        <p class="relative text-gray-600 text-sm">
-          Comming soon...
-        </p>
       </div>
+
+      <!-- Feature 6: Visual Reports -->
+      <div (click)="handleNavigation()" class="group p-8 rounded-2xl bg-white border border-gray-200 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 relative overflow-hidden cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-br from-yellow-500 via-orange-500 to-red-500 opacity-0 group-hover:opacity-10 transition duration-500"></div>
+        <div class="relative">
+          <div class="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-600 to-orange-600 text-white text-3xl mb-6 shadow-lg">
+            📈
+          </div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">Visual Analytics</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Interactive charts showing percentile rankings, peer comparisons, and traction trends. Export to PDF for IC meetings.
+          </p>
+          <div class="mt-4 flex items-center text-sm text-orange-600 font-semibold">
+            <span>Board-ready reports</span>
+            <svg class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
     </div>
+
+    <!-- CTA Section -->
+    <div class="mt-20 text-center">
+      <button (click)="handleNavigation()" class="inline-flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-full shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 cursor-pointer border-none">
+        <span class="text-lg font-semibold">Ready to supercharge your deal flow?</span>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+        </svg>
+      </button>
+      <p class="mt-4 text-gray-600">Join 100+ VCs analyzing deals faster with AI</p>
+    </div>
+
   </div>
 </section>

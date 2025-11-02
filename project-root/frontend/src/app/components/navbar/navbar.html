@@ -5,14 +5,40 @@
     <!-- Navigation links can go here -->
   </div>
 
-  <div class="flex space-x-4">
-    <!-- Login & Sign-Up Buttons -->
-    <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" (click)="openLoginDialog()">
-      Login
-    </button>
+  <div class="flex items-center space-x-4">
+    <!-- Show Login & Sign-Up Buttons when NOT logged in -->
+    <ng-container *ngIf="!isLoggedIn">
+      <a routerLink="/login" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition inline-block">
+        Login
+      </a>
 
-    <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" (click)="openSignUpDialog()">
-      Sign Up
-    </button>
+      <a routerLink="/signup" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition inline-block">
+        Sign Up
+      </a>
+    </ng-container>
+
+    <!-- Show User Profile Menu when logged in -->
+    <ng-container *ngIf="isLoggedIn">
+      <button mat-button [matMenuTriggerFor]="userMenu" class="flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-gray-100 transition">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-md">
+            {{ userDisplayName.charAt(0).toUpperCase() }}
+          </div>
+          <span class="text-gray-800 font-medium">{{ userDisplayName }}</span>
+          <mat-icon class="text-gray-600">keyboard_arrow_down</mat-icon>
+        </div>
+      </button>
+
+      <mat-menu #userMenu="matMenu" class="mt-2">
+        <div class="px-4 py-3 border-b border-gray-200">
+          <p class="text-sm font-medium text-gray-900">{{ userDisplayName }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ userEmail }}</p>
+        </div>
+        <button mat-menu-item (click)="logout()" class="flex items-center space-x-2">
+          <mat-icon class="text-red-600">logout</mat-icon>
+          <span class="text-gray-700">Logout</span>
+        </button>
+      </mat-menu>
+    </ng-container>
   </div>
 </nav>
