@@ -196,6 +196,10 @@ def analyze_documents():
     Analyzes one or more uploaded documents using multi-agent orchestrator.
     Supports Document AI, Gemini analysis, and benchmark comparison.
     """
+    print("="*80)
+    print("[backend] ✓✓✓ /api/analyze endpoint HIT - NEW CODE LOADED ✓✓✓")
+    print("="*80)
+
     # Demo mode can be flagged via form field or header
     is_demo = (request.form.get('isDemo') == 'true') or (request.headers.get('X-Trial') == 'true')
     user_id = None
@@ -346,4 +350,5 @@ def serve_angular(path):
         }), 404
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Disable reloader to prevent infinite restart loops
+    app.run(debug=True, use_reloader=False)

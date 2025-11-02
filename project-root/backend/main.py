@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Disable Python bytecode caching to ensure code changes are always loaded
+sys.dont_write_bytecode = True
+
 from routes.initialEndpoints import app
 
 if __name__ == '__main__':

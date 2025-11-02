@@ -42,13 +42,18 @@ def analyze_combined_text(text: str) -> Dict[str, Any]:
     Call Gemini to analyze the combined text content and return a structured AnalysisResult.
     Falls back to a heuristic/dummy result if API key is missing or request fails.
     """
+    print(f"[analysis_helper] analyze_combined_text called with {len(text)} chars")
     if not text or len(text.strip()) == 0:
+        print("[analysis_helper] No text provided, returning dummy result")
         return _dummy_result("No text extracted from documents.")
 
     api_key = _ensure_api_key_loaded()
     if not api_key:
         # No API key configured; return fallback
+        print("[analysis_helper] No API key found, returning dummy result")
         return _dummy_result("Gemini API key not configured. Returning placeholder analysis.")
+
+    print(f"[analysis_helper] API key found, calling Gemini API...")
 
     prompt = """
 You are an experienced venture capital investment analyst.
@@ -99,9 +104,12 @@ DOCUMENT CONTENT (trimmed):
     params = {"key": api_key}
 
     try:
+        print(f"[analysis_helper] Sending request to Gemini API...")
         resp = requests.post(GEMINI_API_URL, headers=headers, params=params, json=payload, timeout=60)
+        print(f"[analysis_helper] Response status: {resp.status_code}")
         resp.raise_for_status()
         data = resp.json()
+        print(f"[analysis_helper] Successfully received response from Gemini")
         raw_text = (
             data.get("candidates", [{}])[0]
             .get("content", {})
@@ -230,6 +238,43 @@ def infer_cohort(text: str) -> Dict[str, Any]:
         return {}
 
 
+def _get_default_benchmarks(sector: str, stage: str) -> Dict[str, Any]:
+    """
+    Provide default benchmark estimates when LLM is unavailable.
+    Returns typical values for common startup metrics based on sector and stage.
+    """
+    # Default estimates based on industry data
+    # Values vary by stage
+    stage_multipliers = {
+        'pre-seed': 0.5,
+        'seed': 0.7,
+        'series-a': 1.0,
+        'series-b': 1.5,
+        'series-c': 2.0,
+        'growth': 3.0
+    }
+    multiplier = stage_multipliers.get(stage, 1.0)
+
+    base_estimates = {
+        "arr": {"median": int(500000 * multiplier), "unit": "USD"},
+        "mrr": {"median": int(40000 * multiplier), "unit": "USD"},
+        "growthYoY": {"median": 1.5 if stage in ['pre-seed', 'seed'] else 1.0, "unit": "decimal"},
+        "churnRate": {"median": 0.05, "unit": "decimal"},
+        "cac": {"median": 200, "unit": "USD"},
+        "ltv": {"median": 2000, "unit": "USD"},
+        "grossMargin": {"median": 0.7, "unit": "decimal"}
+    }
+
+    return {
+        "cohort": {
+            "sector": sector,
+            "stage": stage
+        },
+        "estimates": base_estimates,
+        "notes": "Default benchmark estimates (LLM unavailable). These are typical industry values."
+    }
+
+
 def infer_benchmark_estimates(text: str, sector: str, stage: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
     """Ask the LLM to suggest benchmark medians for the given cohort and provide qualitative comparisons.
     Returns a dict like:
@@ -297,11 +342,13 @@ def infer_benchmark_estimates(text: str, sector: str, stage: str, metrics: Dict[
         except Exception:
             maybe = _extract_json_object(cleaned)
             if not maybe:
-                return {}
+                print(f"[analysis_helper] Failed to extract JSON from LLM benchmark response, using defaults")
+                return _get_default_benchmarks(sector, stage)
             try:
                 obj = json.loads(maybe)
             except Exception:
-                return {}
+                print(f"[analysis_helper] Failed to parse extracted JSON from LLM benchmark, using defaults")
+                return _get_default_benchmarks(sector, stage)
         # Light normalization of fields
         out: Dict[str, Any] = {
             "cohort": {

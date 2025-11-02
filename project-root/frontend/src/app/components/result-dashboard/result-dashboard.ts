@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, AfterViewInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AnalysisResult } from '../../services/api.service';
@@ -11,7 +11,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
   standalone: true,
   templateUrl: './result-dashboard.html',
 })
-export class ResultDashboard implements OnDestroy, AfterViewInit {
+export class ResultDashboard implements OnInit, OnDestroy, AfterViewInit {
   private router = inject(Router);
   
   analysis: AnalysisResult | null = null;
@@ -22,6 +22,8 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
   private isRendering = false;
   private pendingRender = false;
   private renderTimer?: any;
+  private renderAttempts = 0;
+  private readonly MAX_RENDER_ATTEMPTS = 5;
 
   ngOnInit() {
     const navigation = this.router.getCurrentNavigation();
@@ -39,6 +41,15 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
     this.analysis = (fromNav as AnalysisResult) || (fromHistory as AnalysisResult) || fromStorage;
 
     if (this.analysis) {
+      // Debug logging
+      console.log('[ResultDashboard] Analysis data received:', this.analysis);
+      console.log('[ResultDashboard] Has benchmarks:', !!this.analysis.benchmarks,
+                  'Count:', Object.keys(this.analysis.benchmarks || {}).length);
+      console.log('[ResultDashboard] Has llmBenchmark:', !!this.analysis.llmBenchmark);
+      console.log('[ResultDashboard] Has llmBenchmark.estimates:', !!this.analysis.llmBenchmark?.estimates,
+                  'Count:', Object.keys(this.analysis.llmBenchmark?.estimates || {}).length);
+      console.log('[ResultDashboard] hasBenchOrEstimates():', this.hasBenchOrEstimates());
+
       // keep a copy so reloads still show data
       try { sessionStorage.setItem('analysisLatest', JSON.stringify(this.analysis)); } catch {}
       // Rendering will occur in ngAfterViewInit to avoid double-initialization
@@ -48,11 +59,15 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
   ngAfterViewInit(): void {
     // If analysis was already set (via sessionStorage/history), render charts now
     if (this.analysis) {
+      console.log('[ResultDashboard] ngAfterViewInit: Analysis exists, scheduling render');
       this.scheduleRender(0);
+    } else {
+      console.log('[ResultDashboard] ngAfterViewInit: No analysis data available');
     }
     // Observe charts container for size/visibility changes to re-render charts when needed
     const container = document.getElementById('chartsContainer');
     if (container) {
+      console.log('[ResultDashboard] Charts container found, setting up observers');
       if ('ResizeObserver' in window) {
         this.ro = new ResizeObserver(() => {
           // If charts already exist, let Chart.js handle responsive resizing internally.
@@ -65,12 +80,15 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
         this.io = new IntersectionObserver((entries) => {
           const e = entries[0];
           if (e && e.isIntersecting) {
+            console.log('[ResultDashboard] Charts container is visible, charts count:', this.charts.length);
             // Only render if we haven't already created charts
             if (this.charts.length === 0) this.scheduleRender(0);
           }
         }, { threshold: 0.1 });
         this.io.observe(container);
       }
+    } else {
+      console.log('[ResultDashboard] WARNING: Charts container not found in DOM');
     }
   }
 
@@ -96,11 +114,27 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
   }
 
   private async renderCharts() {
-    if (!this.analysis) return;
-    if (this.isRendering) { this.pendingRender = true; return; }
+    console.log('[ResultDashboard] renderCharts called, attempt:', this.renderAttempts + 1);
+    if (!this.analysis) {
+      console.log('[ResultDashboard] No analysis data, skipping chart render');
+      return;
+    }
+    if (this.isRendering) {
+      console.log('[ResultDashboard] Already rendering, scheduling pending render');
+      this.pendingRender = true;
+      return;
+    }
+    this.renderAttempts++;
+    if (this.renderAttempts > this.MAX_RENDER_ATTEMPTS) {
+      console.warn('[ResultDashboard] Max render attempts reached. Stopping to prevent infinite loop.');
+      console.warn('[ResultDashboard] Likely causes: No benchmark data OR canvas elements not in DOM');
+      return;
+    }
     this.isRendering = true;
+    console.log('[ResultDashboard] Importing Chart.js...');
     const mod = await import('chart.js/auto');
     const Chart = (mod as any).default || (mod as any);
+    console.log('[ResultDashboard] Chart.js loaded successfully');
 
     // Destroy existing charts before re-render
     for (const ch of this.charts) {
@@ -113,11 +147,17 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
     // If no dataset benchmarks, try to synthesize comparable arrays from estimates
     const estimates = (this.analysis.llmBenchmark?.estimates || {}) as Record<string, any>;
     const relative = (this.analysis.llmBenchmark?.relative || {}) as Record<string, string>;
+
+    console.log('[ResultDashboard] DEBUG - benchmarks:', bench);
+    console.log('[ResultDashboard] DEBUG - llmBenchmark:', this.analysis.llmBenchmark);
+    console.log('[ResultDashboard] DEBUG - estimates:', estimates);
+
     let useEstimates = false;
     if (!keys.length && Object.keys(estimates).length) {
       keys = Object.keys(estimates);
       useEstimates = true;
     }
+    console.log('[ResultDashboard] Found metrics keys:', keys, 'useEstimates:', useEstimates);
     if (keys.length) {
       const labels = keys.map(k => this.metricLabel(k));
       const percentiles = keys.map(k => {
@@ -129,6 +169,8 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
         if (rel === 'below') return 25;
         return 50;
       });
+      console.log('[ResultDashboard] Chart labels:', labels);
+      console.log('[ResultDashboard] Chart percentiles:', percentiles);
       // Build company values: from benchmarks when available, otherwise from extractedMetrics
       const unitsMap: Record<string, string> = {};
       if (useEstimates) {
@@ -144,13 +186,16 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
 
       // Radar chart: percentiles
       const radarEl = document.getElementById('radarChart') as HTMLCanvasElement | null;
+      console.log('[ResultDashboard] Radar canvas element:', radarEl ? 'found' : 'NOT FOUND');
       if (radarEl) {
         if (!this.ensureCanvasSize(radarEl, 240)) {
+          console.log('[ResultDashboard] Radar canvas size not ready, rescheduling');
           this.scheduleRender(200);
           return;
         }
         // Ensure no existing chart is bound to this canvas
         try { (Chart as any).getChart?.(radarEl)?.destroy?.(); } catch {}
+        console.log('[ResultDashboard] Creating radar chart with', labels.length, 'metrics');
         const radar = new Chart(radarEl, {
           type: 'radar',
           data: {
@@ -174,10 +219,12 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
           }
         });
         this.charts.push(radar);
+        console.log('[ResultDashboard] Radar chart created successfully');
       }
 
       // Bar chart: company vs median
       const barEl = document.getElementById('barChart') as HTMLCanvasElement | null;
+      console.log('[ResultDashboard] Bar canvas element:', barEl ? 'found' : 'NOT FOUND');
       if (barEl) {
         if (!this.ensureCanvasSize(barEl, 240)) {
           this.scheduleRender(200);
@@ -206,15 +253,20 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
           }
         });
         this.charts.push(bar);
+        console.log('[ResultDashboard] Bar chart created successfully');
       }
+    } else {
+      console.log('[ResultDashboard] No metrics data available for radar/bar charts');
     }
 
     // Doughnut: composite score
+    console.log('[ResultDashboard] Checking for composite score:', this.analysis.score?.composite);
     if (this.analysis.score && this.analysis.score.composite != null) {
       const comp = Math.max(0, Math.min(1, this.analysis.score.composite as number));
       const val = Math.round(comp * 100);
       const rem = 100 - val;
       const doughEl = document.getElementById('doughnutChart') as HTMLCanvasElement | null;
+      console.log('[ResultDashboard] Doughnut canvas element:', doughEl ? 'found' : 'NOT FOUND');
       if (doughEl) {
         if (!this.ensureCanvasSize(doughEl, 200)) {
           this.scheduleRender(200);
@@ -231,14 +283,24 @@ export class ResultDashboard implements OnDestroy, AfterViewInit {
           options: { responsive: true, maintainAspectRatio: false, resizeDelay: 100, animation: false, plugins: { legend: { display: false } }, cutout: '70%' }
         });
         this.charts.push(dough);
+        console.log('[ResultDashboard] Doughnut chart created successfully');
       }
     }
 
-    // If canvases weren't in DOM yet, retry once shortly
+    // If canvases weren't in DOM yet AND we have data to render, retry once shortly
+    const hasData = keys.length > 0 || (this.analysis.score && this.analysis.score.composite != null);
     if (!document.getElementById('radarChart') && !document.getElementById('barChart') && !document.getElementById('doughnutChart')) {
-      this.scheduleRender(250);
+      if (hasData && this.renderAttempts <= this.MAX_RENDER_ATTEMPTS) {
+        console.log('[ResultDashboard] No chart canvases found in DOM, rescheduling render');
+        this.scheduleRender(250);
+      } else if (!hasData) {
+        console.warn('[ResultDashboard] No chart canvases AND no data. Skipping reschedule.');
+      } else {
+        console.warn('[ResultDashboard] Max attempts reached. Chart canvases may not be in DOM.');
+      }
     }
 
+    console.log('[ResultDashboard] Render complete. Total charts created:', this.charts.length);
     // Done rendering; handle any pending rerender request
     this.isRendering = false;
     if (this.pendingRender) { this.pendingRender = false; this.scheduleRender(0); }

@@ -111,6 +111,10 @@ export class FileUploadDialog {
     try {
       const isDemo = !!this.data?.isDemo;
       const result = await this.apiService.analyzeDocument(this.selectedFiles, isDemo);
+      console.log('[FileUploadDialog] API returned result:', result);
+      console.log('[FileUploadDialog] Has benchmarks?', !!result.benchmarks, Object.keys(result.benchmarks || {}).length);
+      console.log('[FileUploadDialog] Has llmBenchmark?', !!result.llmBenchmark);
+      console.log('[FileUploadDialog] llmBenchmark estimates?', result.llmBenchmark?.estimates);
       this.dialogRef.close(result);
     } catch (err: any) {
       const status = err?.status;
