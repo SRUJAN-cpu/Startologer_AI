@@ -3,8 +3,9 @@ import requests
 from typing import Dict, Any
 from dotenv import load_dotenv, find_dotenv
 
-# Prefer a current Gemini model/endpoint; many older v1beta models are deprecated
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+# Use the latest stable Gemini model (gemini-pro is deprecated)
+# Try gemini-1.5-flash-latest for better compatibility
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
 
 def _ensure_api_key_loaded() -> str | None:
     """Try to obtain GEMINI_API_KEY; attempt .env loads if missing."""

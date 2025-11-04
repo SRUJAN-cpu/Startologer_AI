@@ -40,10 +40,17 @@ class BenchmarkAgent:
         sector = cohort.get('sector', 'saas')
         stage = cohort.get('stage', 'seed')
 
+        print(f"[BenchmarkAgent] Received extractedMetrics: {extracted_metrics}")
+        print(f"[BenchmarkAgent] Cohort: sector={sector}, stage={stage}")
+
         # Perform benchmark comparison
         try:
             benchmarks = benchmark_metrics(extracted_metrics, sector, stage)
+            print(f"[BenchmarkAgent] Benchmark results: {benchmarks}")
         except Exception as e:
+            print(f"[BenchmarkAgent] Benchmark comparison failed: {e}")
+            import traceback
+            traceback.print_exc()
             benchmarks = {}
 
         # Calculate composite score

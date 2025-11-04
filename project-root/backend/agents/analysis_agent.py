@@ -47,17 +47,24 @@ class AnalysisAgent:
         # Step 2: Extract metrics using multiple methods
         # 2a. Regex-based extraction (fast but limited)
         regex_metrics = extract_metrics(combined_text)
+        print(f"[AnalysisAgent] Regex extracted metrics: {regex_metrics}")
 
         # 2b. LLM-based extraction (comprehensive but requires API)
         llm_metrics = {}
         if llm_ok:
             try:
+                print(f"[AnalysisAgent] Attempting LLM metric extraction...")
                 llm_metrics = extract_metrics_with_llm(combined_text)
+                print(f"[AnalysisAgent] LLM extracted metrics: {llm_metrics}")
             except Exception as e:
+                print(f"[AnalysisAgent] LLM metric extraction failed: {e}")
                 llm_metrics = {}
+        else:
+            print(f"[AnalysisAgent] LLM not available, skipping LLM metric extraction")
 
         # Merge metrics: LLM takes precedence over regex when both exist
         extracted_metrics = {**regex_metrics, **llm_metrics}
+        print(f"[AnalysisAgent] Final extracted_metrics: {extracted_metrics}")
 
         # Enrich metrics with Document AI entities
         if 'key_metrics' in parser_result:
@@ -76,8 +83,19 @@ class AnalysisAgent:
                 extracted_metrics['founders'] = doc_ai_metrics['people']
 
         # Step 3: Infer cohort (sector + stage)
-        sector = (extracted_metrics.get('sector') or '').strip().lower()
-        stage = (extracted_metrics.get('stage') or '').strip().lower()
+        # Clean sector/stage: remove newlines and extra whitespace
+        raw_sector = extracted_metrics.get('sector') or ''
+        raw_stage = extracted_metrics.get('stage') or ''
+        print(f"[AnalysisAgent] Raw sector before cleaning: {repr(raw_sector)}")
+        print(f"[AnalysisAgent] Raw stage before cleaning: {repr(raw_stage)}")
+
+        sector = raw_sector.replace('\n', ' ').replace('\r', ' ').strip().lower()
+        stage = raw_stage.replace('\n', ' ').replace('\r', ' ').strip().lower()
+        # Collapse multiple spaces into one
+        import re
+        sector = re.sub(r'\s+', ' ', sector)
+        stage = re.sub(r'\s+', ' ', stage)
+        print(f"[AnalysisAgent] Cleaned sector: {repr(sector)}, stage: {repr(stage)}")
         cohort_source = 'extracted' if (sector and stage) else 'default'
 
         # Use LLM to infer cohort if missing and LLM is available
@@ -89,8 +107,11 @@ class AnalysisAgent:
             stage = stage or guess.get('stage') or ''
 
         # Normalize sector and stage
+        sector_before_norm = sector
         sector = self._normalize_sector(sector) or 'saas'
         stage = self._normalize_stage(stage) or 'seed'
+        print(f"[AnalysisAgent] Before normalization: sector={repr(sector_before_norm)}")
+        print(f"[AnalysisAgent] After normalization: sector={repr(sector)}, stage={repr(stage)}, source={cohort_source}")
 
         # Step 4: Get LLM benchmark estimates (always attempt if LLM available)
         # This provides context even when specific metrics aren't extracted
@@ -102,24 +123,33 @@ class AnalysisAgent:
                 if not llm_benchmark or not llm_benchmark.get('estimates'):
                     llm_benchmark = None
             except Exception as e:
+                print(f"[AnalysisAgent] LLM benchmark estimation failed: {e}")
                 llm_benchmark = None
+
+        # FALLBACK: If LLM is unavailable or failed, use default benchmarks as estimates
+        # This ensures charts always render even when Gemini API is down
+        if not llm_benchmark:
+            from helpers.analysis_helper import _get_default_benchmarks
+            print(f"[AnalysisAgent] Using default benchmark estimates for {sector}/{stage}")
+            llm_benchmark = _get_default_benchmarks(sector, stage)
 
         # Step 5: Synthesize regulation info if missing
         llm_analysis = self._ensure_regulation_info(llm_analysis, sector)
 
+        # Create clean extracted metrics with normalized sector/stage
+        clean_metrics = {k: v for k, v in extracted_metrics.items() if k not in ['sector', 'stage']}
+        clean_metrics['sector'] = sector
+        clean_metrics['stage'] = stage
+
         result = {
             **llm_analysis,  # Includes executiveSummary, marketAnalysis, risks, recommendations
-            "extractedMetrics": {
-                **extracted_metrics,
-                "sector": sector,
-                "stage": stage
-            },
+            "extractedMetrics": clean_metrics,
             "cohort": {
                 "sector": sector,
                 "stage": stage,
                 "source": cohort_source
             },
-            "llmBenchmark": llm_benchmark if llm_benchmark else None,
+            "llmBenchmark": llm_benchmark,  # Always present now (fallback to defaults)
             "llmStatus": llm_analysis.get('llmStatus', {}),
             "agent": self.name,
             "processing_info": {
@@ -130,15 +160,24 @@ class AnalysisAgent:
             }
         }
 
+        print(f"[AnalysisAgent] Final result - llmBenchmark present: {bool(llm_benchmark)}, has estimates: {bool(llm_benchmark.get('estimates') if llm_benchmark else False)}")
         return result
 
     def _normalize_sector(self, sector: str) -> str:
         """Normalize sector names to standard values"""
+        if not sector:
+            return 'saas'
+
         sector = sector.lower().strip()
+
+        # Remove common noise words and clean up
+        noise_words = ['linkedin', 'facebook', 'twitter', 'instagram', 'social', 'media', 'platform']
+        for word in noise_words:
+            sector = sector.replace(word, '').strip()
 
         # Mapping of common variants to standard names
         mappings = {
-            'saas': ['saas', 'software', 'software as a service', 'b2b saas', 'enterprise software'],
+            'saas': ['saas', 'software', 'software as a service', 'b2b saas', 'enterprise software', 's a a s'],
             'fintech': ['fintech', 'finance', 'financial services', 'payments', 'banking', 'bfsi'],
             'healthtech': ['healthtech', 'healthcare', 'health', 'medical', 'med tech', 'digital health'],
             'ecommerce': ['ecommerce', 'e-commerce', 'marketplace', 'retail', 'commerce', 'resale'],
@@ -151,6 +190,10 @@ class AnalysisAgent:
         for standard, variants in mappings.items():
             if any(variant in sector for variant in variants):
                 return standard
+
+        # If nothing matches and sector is very short (like 's'), default to saas
+        if len(sector) <= 2:
+            return 'saas'
 
         return sector or 'saas'
 

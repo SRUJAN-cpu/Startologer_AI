@@ -2,7 +2,6 @@ import csv
 import os
 from typing import Dict, Any
 from datetime import datetime
-from urllib.parse import urlparse
 
 try:
     import requests  # used only if BENCHMARK_CSV_URL is set
@@ -20,7 +19,10 @@ def _load_from_local(path: str) -> list[Dict[str, str]]:
     if not os.path.exists(path):
         return []
     with open(path, newline='', encoding='utf-8') as f:
-        return list(csv.DictReader(f))
+        # Filter out comment lines starting with '#'
+        lines = [line for line in f if not line.strip().startswith('#')]
+        reader = csv.DictReader(lines)
+        return list(reader)
 
 
 def _load_from_url(url: str) -> list[Dict[str, str]]:
@@ -53,14 +55,20 @@ def reload_benchmarks() -> Dict[str, Any]:
                 "rows": len(rows),
             }
         if not rows:
+            print(f"[benchmark_service] Loading benchmarks from local file: {CSV_PATH}")
             rows = _load_from_local(CSV_PATH)
             src = {
                 "source": "local",
                 "path": CSV_PATH,
                 "rows": len(rows),
             }
+            print(f"[benchmark_service] Loaded {len(rows)} rows from CSV")
+            # Print first few rows for debugging
+            if rows:
+                print(f"[benchmark_service] Sample rows: {rows[:3]}")
     except Exception as e:
         # On error, keep previous data
+        print(f"[benchmark_service] Error loading benchmarks: {e}")
         src = {"source": "error", "error": str(e), "rows": len(_ROWS)}
 
     _ROWS = rows or _ROWS
@@ -84,36 +92,56 @@ def benchmark_metrics(metrics: Dict[str, Any], sector: str | None, stage: str | 
     """Return benchmark comparison for available metrics using a local CSV.
     Output per metric: companyValue, median, p25, p75, percentile (rough), status.
     """
+    print(f"[benchmark_service] benchmark_metrics called with sector={sector}, stage={stage}")
+    print(f"[benchmark_service] metrics received: {metrics}")
+    print(f"[benchmark_service] Total rows loaded: {len(_ROWS)}")
     out: Dict[str, Any] = {}
     if not sector or not stage:
+        print(f"[benchmark_service] Missing sector or stage, returning empty")
         return out
 
     def compute(name: str, higher_is_better: bool = True):
-        val = metrics.get(name)
-        if val is None:
-            return
-        row = _find_row(sector, stage, name)
-        if not row:
-            return
-        median = float(row['median'])
-        p25 = float(row['p25'])
-        p75 = float(row['p75'])
-        # crude percentile estimate within IQR
-        if val <= p25:
-            perc = 0.1
-        elif val >= p75:
-            perc = 0.9
-        else:
-            perc = 0.1 + 0.8 * ((val - p25) / (p75 - p25))
-        status = 'above' if (higher_is_better and val >= median) or (not higher_is_better and val <= median) else 'below'
-        out[name] = {
-            'companyValue': val,
-            'median': median,
-            'p25': p25,
-            'p75': p75,
-            'percentile': perc,
-            'status': status
-        }
+        try:
+            val = metrics.get(name)
+            if val is None:
+                print(f"[benchmark_service] Metric '{name}' not found in extracted metrics")
+                return
+            print(f"[benchmark_service] Found metric '{name}' with value: {val}")
+            row = _find_row(sector, stage, name)
+            if not row:
+                print(f"[benchmark_service] No benchmark row found for metric '{name}' with sector={sector}, stage={stage}")
+                return
+            print(f"[benchmark_service] Found benchmark row for '{name}': {row}")
+            median = float(row['median'])
+            p25 = float(row['p25'])
+            p75 = float(row['p75'])
+            print(f"[benchmark_service] Converted values - median: {median}, p25: {p25}, p75: {p75}")
+
+            # crude percentile estimate within IQR
+            if val <= p25:
+                perc = 0.1
+            elif val >= p75:
+                perc = 0.9
+            else:
+                perc = 0.1 + 0.8 * ((val - p25) / (p75 - p25))
+
+            # Convert percentile to 0-1 scale (it might be > 1 for extreme outliers)
+            perc = max(0.01, min(0.99, perc))
+
+            status = 'above' if (higher_is_better and val >= median) or (not higher_is_better and val <= median) else 'below'
+            out[name] = {
+                'companyValue': val,
+                'median': median,
+                'p25': p25,
+                'p75': p75,
+                'percentile': perc,
+                'status': status
+            }
+            print(f"[benchmark_service] Successfully added '{name}' to benchmarks with percentile {perc:.2f}")
+        except Exception as e:
+            print(f"[benchmark_service] ERROR computing benchmark for '{name}': {e}")
+            import traceback
+            traceback.print_exc()
 
     # Growth, margins, LTV are higher-is-better; churn, CAC are lower-is-better
     compute('arr', True)
@@ -127,6 +155,7 @@ def benchmark_metrics(metrics: Dict[str, Any], sector: str | None, stage: str | 
     compute('churnRate', False)
     compute('cac', False)
 
+    print(f"[benchmark_service] Returning benchmarks with {len(out)} metrics")
     return out
 
 def score_from_benchmarks(bench: Dict[str, Any], weights: Dict[str, float] | None = None) -> Dict[str, Any]:
