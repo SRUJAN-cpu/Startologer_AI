@@ -151,6 +151,14 @@ class MultiAgentOrchestrator:
             "success": True
         }
 
+        # Debug logging
+        print(f"[Orchestrator] Final result summary:")
+        print(f"  - benchmarks: {len(benchmarks)} metrics")
+        print(f"  - llmBenchmark present: {llm_benchmark is not None}")
+        if llm_benchmark:
+            print(f"  - llmBenchmark.estimates: {len(llm_benchmark.get('estimates', {}))} items")
+        print(f"  - extractedMetrics: {len(extracted_metrics)} items")
+
         return result
 
     def _create_error_response(self, error_message: str, parser_result: Dict = None) -> Dict[str, Any]:

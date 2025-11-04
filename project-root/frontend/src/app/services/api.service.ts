@@ -67,11 +67,12 @@ export class ApiService {
       const v = meta?.content?.trim();
       if (v) return v;
     }
-    // 2) If served from Firebase Hosting with rewrites, use relative /api
+    // 2) If served from Firebase Hosting with rewrites or Cloud Run, use relative /api (same domain)
     if (typeof window !== 'undefined') {
       const host = window.location.host || '';
       const isProdHosting = host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
-      if (isProdHosting) return '';
+      const isCloudRun = host.includes('.run.app');
+      if (isProdHosting || isCloudRun) return '';
     }
     // 3) Local dev: point to Flask
     return 'http://127.0.0.1:5000';

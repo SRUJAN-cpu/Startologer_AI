@@ -1,10 +1,16 @@
 import os
+import sys
 from pptx import Presentation
 import PyPDF2
 try:
     import docx  # python-docx
 except ImportError:
     docx = None
+
+# Add parent directory to path to import helpers
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from helpers.pdf_compressor import compress_pdf, should_compress_pdf
+from services.online_pdf_compressor import compress_pdf_with_fallback
 
 def extract_text_from_pptx(file_path):
     prs = Presentation(file_path)
@@ -39,7 +45,34 @@ def extract_text(file_path):
     if ext == ".pptx":
         return extract_text_from_pptx(file_path)
     elif ext == ".pdf":
-        return extract_text_from_pdf(file_path)
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+
+        # For very large files (>30MB), use online compression
+        if file_size_mb > 30:
+            print(f"[TextExtractor] Large PDF ({file_size_mb:.1f}MB), using online compression...")
+            compressed_path = compress_pdf_with_fallback(file_path)
+            text = extract_text_from_pdf(compressed_path)
+            # Clean up compressed file if it's different from original
+            if compressed_path != file_path and os.path.exists(compressed_path):
+                try:
+                    os.remove(compressed_path)
+                except Exception as e:
+                    print(f"[TextExtractor] Failed to clean up compressed file: {e}")
+            return text
+        # For medium files (>10MB), use local compression
+        elif should_compress_pdf(file_path, threshold_mb=10):
+            print(f"[TextExtractor] PDF is large, compressing before extraction: {file_path}")
+            compressed_path = compress_pdf(file_path)
+            text = extract_text_from_pdf(compressed_path)
+            # Clean up compressed file if it's different from original
+            if compressed_path != file_path and os.path.exists(compressed_path):
+                try:
+                    os.remove(compressed_path)
+                except Exception as e:
+                    print(f"[TextExtractor] Failed to clean up compressed file: {e}")
+            return text
+        else:
+            return extract_text_from_pdf(file_path)
     elif ext == ".docx":
         return extract_text_from_docx(file_path)
     elif ext == ".txt":

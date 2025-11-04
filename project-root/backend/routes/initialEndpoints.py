@@ -35,7 +35,7 @@ else:
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24).hex())
-app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_FILE_SIZE_MB', 10)) * 1024 * 1024  # Default 10MB
+app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_FILE_SIZE_MB', 32)) * 1024 * 1024  # 32MB to match Cloud Run limit
 
 # Rate limiting
 limiter = Limiter(
@@ -83,8 +83,8 @@ def request_entity_too_large(error):
     """Handle file size limit exceeded"""
     max_size = app.config.get('MAX_CONTENT_LENGTH', 0) / (1024 * 1024)
     return jsonify({
-        "error": "File size limit exceeded",
-        "details": f"Maximum allowed file size is {max_size:.0f}MB"
+        "error": "File too large for upload",
+        "details": f"Cloud Run has a {max_size:.0f}MB HTTP request limit. Your file exceeded this limit even after client-side compression.\n\nPlease:\n1. Compress your PDF at https://www.ilovepdf.com/compress_pdf (free)\n2. Split large PDFs into smaller files\n3. Contact support for enterprise upload options"
     }), 413
 
 @app.errorhandler(429)

@@ -44,7 +44,10 @@
 <div *ngIf="error" class="text-red-500 text-sm mt-2">{{ error }}</div>
 
 <!-- Progress Bar -->
-<mat-progress-bar *ngIf="isLoading" mode="indeterminate" class="mt-4"></mat-progress-bar>
+<div *ngIf="isLoading" class="mt-4">
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  <p *ngIf="loadingMessage" class="text-sm text-gray-600 mt-2 text-center">{{ loadingMessage }}</p>
+</div>
 
 <!-- Action Buttons -->
 <div mat-dialog-actions class="mt-6 flex justify-end space-x-2">
