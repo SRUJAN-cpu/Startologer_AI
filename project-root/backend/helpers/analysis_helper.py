@@ -3,9 +3,9 @@ import requests
 from typing import Dict, Any
 from dotenv import load_dotenv, find_dotenv
 
-# Use the latest stable Gemini model (gemini-pro is deprecated)
-# Try gemini-1.5-flash-latest for better compatibility
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+# Use the latest stable Gemini model
+# v1beta supports gemini-1.5-flash and gemini-1.5-pro
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
 def _ensure_api_key_loaded() -> str | None:
     """Try to obtain GEMINI_API_KEY; attempt .env loads if missing."""
@@ -58,48 +58,62 @@ def analyze_combined_text(text: str) -> Dict[str, Any]:
 
     prompt = """
 You are an experienced venture capital investment analyst.
-Your job is to rigorously analyze startup-related documents and produce ONLY a valid JSON object.
-Follow the schema EXACTLY — no extra text, no explanations, no placeholders, no "N/A".
-If information is missing, intelligently infer reasonable assumptions based on typical startups in the sector/stage.
+Analyze this startup pitch deck and produce ONLY a valid JSON object with your investment analysis.
+
+CRITICAL REQUIREMENTS:
+- Output ONLY valid JSON - no markdown, no code blocks, no explanations
+- NEVER use "N/A", "Unknown", or placeholders
+- Provide specific, actionable insights based on the document
+- Include at least 3-5 risks and 3-5 recommendations
+- Make market analysis detailed and specific
 
 OUTPUT SCHEMA:
 {{
-    "executiveSummary": string,  // 2–4 sentences summarizing the opportunity
+    "executiveSummary": "Compelling 3-4 sentence summary of the investment opportunity, highlighting key strengths and market position",
     "marketAnalysis": {{
-        "marketSize": string,      // concise estimate or characterization
-        "growthRate": string,      // CAGR or directional growth
-        "competition": string,     // key players, substitutes, or competitive dynamics
-        "entryBarriers": string,   // capital, tech, network effects, distribution, brand, etc.
-        "regulation": string       // practical regulatory landscape (1–3 sentences). Always provide something plausible; never write placeholders.
+        "marketSize": "Specific TAM/SAM estimate with timeframe (e.g., '$50B by 2025' or 'Growing enterprise SaaS market')",
+        "growthRate": "Specific growth rate or trend (e.g., '25% CAGR' or 'Rapidly expanding due to digital transformation')",
+        "competition": "Name 2-3 key competitors or competitive dynamics (e.g., 'Competing with Salesforce and HubSpot in CRM space')",
+        "entryBarriers": "Specific barriers (e.g., 'Network effects, proprietary AI models, enterprise relationships')",
+        "regulation": "Relevant regulatory landscape (e.g., 'Subject to GDPR and CCPA data privacy laws; requires SOC 2 compliance')"
     }},
     "risks": [
         {{
-            "factor": string,
+            "factor": "Specific risk name",
             "impact": "low" | "medium" | "high",
-            "description": string     // concrete risk description, not vague
+            "description": "Detailed risk explanation with potential mitigation strategies"
         }}
     ],
     "recommendations": [
         {{
-            "title": string,
-            "description": string     // actionable suggestions for founders or investors
+            "title": "Actionable recommendation title",
+            "description": "Specific, detailed suggestion with expected outcomes"
         }}
     ]
 }}
 
-RULES:
-- Output must be STRICT JSON, parseable without errors.
-- Be concise but analytical, as if writing due diligence notes for a VC firm.
-- Never include commentary outside the JSON block.
-- If data is not explicitly in the document, infer based on common industry knowledge.
-- Keep all values realistic, professional, and startup-relevant.
+ANALYSIS GUIDELINES:
+1. **Market Analysis**: Infer market size from industry sector (SaaS, FinTech, HealthTech, etc.) if not explicitly stated
+2. **Risks**: Identify 3-5 specific risks (market, execution, competition, regulatory, financial)
+3. **Recommendations**: Provide 3-5 actionable suggestions for improving the business
+4. **Be Specific**: Use real company names, actual numbers, specific frameworks
+5. **No Placeholders**: Every field must have meaningful, specific content
 
-DOCUMENT CONTENT (trimmed):
+DOCUMENT CONTENT:
 {doc}
-""".format(doc=text[:8000])
+
+Remember: Output ONLY the JSON object, nothing else.
+""".format(doc=text[:12000])  # Increased from 8000 to 12000 chars for more context
 
     payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}]
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.3,  # Lower temperature for more consistent JSON
+            "topP": 0.8,
+            "topK": 40,
+            "maxOutputTokens": 2048,  # Allow longer responses for detailed analysis
+            "responseMimeType": "application/json"  # Force JSON output
+        }
     }
     headers = {"Content-Type": "application/json"}
     params = {"key": api_key}
@@ -157,8 +171,11 @@ DOCUMENT CONTENT (trimmed):
         # Gracefully handle quota/rate-limit without long waits
         status = getattr(resp, 'status_code', None) or 0
         retry_after = None
+        error_details = None
         try:
             j = resp.json()
+            error_details = j.get('error', {})
+            print(f"[analysis_helper] Gemini API error: {error_details}")
             # RetryInfo may be present in seconds
             for d in j.get('error', {}).get('details', []) or []:
                 if d.get('@type', '').endswith('RetryInfo'):
@@ -169,15 +186,17 @@ DOCUMENT CONTENT (trimmed):
                             retry_after = int(float(ra[:-1]))
                         except Exception:
                             pass
-        except Exception:
+        except Exception as e:
+            print(f"[analysis_helper] Could not parse error response: {e}")
             pass
         try:
-            _ = resp.text  # not surfaced to users
+            error_text = resp.text
+            print(f"[analysis_helper] Full error response: {error_text[:500]}")
         except Exception:
             pass
         # Keep neutral text for users; attach details via llmStatus for diagnostics
         out = _dummy_result("LLM service is temporarily unavailable.")
-        out['llmStatus'] = { 'ok': False, 'status': status, 'retryAfterSec': retry_after }
+        out['llmStatus'] = { 'ok': False, 'status': status, 'retryAfterSec': retry_after, 'error_details': error_details }
         return out
     except Exception as e:
         out = _dummy_result("LLM service is temporarily unavailable.")
